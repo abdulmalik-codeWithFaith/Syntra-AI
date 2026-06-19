@@ -630,7 +630,7 @@ export default function SyntraLanding() {
 
           <h1 className="hero-title text-gray-900 mb-6">
             Your meetings run.<br />
-            <span className="violet-text">Syntra handles the rest.</span>
+            <span className="violet-text">Syntra handles the follow-through.</span>
           </h1>
 
           <p className="hero-sub text-gray-500 text-lg leading-relaxed max-w-xl mx-auto mb-10">
