@@ -5,8 +5,6 @@ import { useState, useMemo, FormEvent } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-
-
 type Role = "Owner" | "Admin" | "Member";
 type MemberStatus = "Active" | "Invited";
 type FilterTab = "All" | Role;
@@ -24,7 +22,9 @@ interface TeamMember {
   joinedDate: string;
 }
 
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const INITIAL_MEMBERS: TeamMember[] = [
   { id: "m1", name: "Musa Imran", email: "musa@synthcorp.com", role: "Owner", status: "Active", initials: "MI", color: "#7C3AED", meetingsAttended: 25, tasksOwned: 4, joinedDate: "Jan 12, 2026" },
@@ -44,8 +44,6 @@ const ROLE_STYLES: Record<Role, { bg: string; color: string }> = {
   Admin: { bg: "#DBEAFE", color: "#1E40AF" },
   Member: { bg: "#F3F4F6", color: "#4B5563" },
 };
-
-
 
 // ─── Topbar ───────────────────────────────────────────────────────────────────
 
@@ -262,7 +260,6 @@ function MemberRow({ member, onRoleChange, onRemove }: { member: TeamMember; onR
 // ─── Main Team Page ────────────────────────────────────────────────────────────
 
 export default function TeamPage() {
-  const [collapsed, setCollapsed] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
   const [search, setSearch] = useState<string>("");
   const [members, setMembers] = useState<TeamMember[]>(INITIAL_MEMBERS);
