@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Logo from "@/public/logo.png";
+import Image from "next/image";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -560,26 +562,15 @@ export default function SyntraLanding() {
       `}</style>
 
       {/* ── NAV ── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "scrolled" : ""}`}>
+      <nav className={`fixed top-0 left-0 bg-gray-900 right-0 z-50 transition-all duration-300 ${scrolled ? "scrolled" : ""}`}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 1l4 4-4 4" />
-                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <path d="M7 23l-4-4 4-4" />
-                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1.1rem", color: "#111827" }}>Syntra</span>
-          </div>
+          <Image src={Logo} alt="logo" width={200} height={100} />
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-8">
             {NAV_LINKS.map((link) => (
               <a key={link.label} href={link.href} className="text-sm font-medium transition-colors" style={{ color: "#6B7280" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#111827")}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#FFF")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "#6B7280")}>
                 {link.label}
               </a>
