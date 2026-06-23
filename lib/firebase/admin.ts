@@ -1,6 +1,3 @@
-// lib/firebase/admin.ts
-// Server-side Firebase Admin SDK — NEVER import this in client components
-// Use only in: API routes (app/api/**), Server Components, Server Actions
 
 import {
   initializeApp,
