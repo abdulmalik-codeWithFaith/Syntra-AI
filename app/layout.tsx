@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
 
 // ─── Fonts ────────────────────────────────────────────────────────────────────
 
@@ -72,8 +73,6 @@ export const metadata: Metadata = {
   },
 };
 
-// ─── Theme color (browser chrome / mobile address bar) ─────────────────────────
-
 export const viewport = {
   themeColor: "#7C3AED",
 };
@@ -88,7 +87,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* Syne (display) + JetBrains Mono (code/labels) — brand typefaces used across all pages */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -100,7 +98,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         className="bg-white text-gray-900 antialiased min-h-screen"
         style={{ fontFamily: "var(--font-inter), sans-serif" }}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
