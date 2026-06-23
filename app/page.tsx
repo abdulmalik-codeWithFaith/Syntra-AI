@@ -562,7 +562,7 @@ export default function SyntraLanding() {
       `}</style>
 
       {/* ── NAV ── */}
-      <nav className={`fixed top-0 left-0 bg-gray-900 right-0 z-50 transition-all duration-300 ${scrolled ? "scrolled" : ""}`}>
+      <nav className={`fixed top-0 left-0 bg-[#DDD6FE] right-0 z-50 transition-all duration-300 ${scrolled ? "scrolled" : ""}`}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Image src={Logo} alt="logo" width={200} height={100} />
 
