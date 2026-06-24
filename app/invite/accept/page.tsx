@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { Suspense, useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -33,25 +33,73 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   return { label: "Strong", color: "#7C3AED", width: "100%" };
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Shared styles ────────────────────────────────────────────────────────────
 
-export default function InviteAcceptPage() {
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
+  .syntra-input { transition: all 0.15s ease; }
+  .syntra-input:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
+  .syntra-input.error { border-color: #EF4444; }
+  .btn-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
+  .btn-violet:hover:not(:disabled) { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); transform: translateY(-1px); }
+  .btn-violet:disabled { opacity: 0.6; cursor: not-allowed; }
+  .card-glow { box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 24px 60px -16px rgba(124,58,237,0.18); }
+`;
+
+const SyntraLogo = () => (
+  <div className="flex flex-col items-center mb-7">
+    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+      style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+        <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+      </svg>
+    </div>
+    <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "1.3rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</span>
+    <span className="text-[10px] tracking-[0.2em] uppercase mt-0.5" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</span>
+  </div>
+);
+
+// ─── Loading skeleton (shown while Suspense resolves) ─────────────────────────
+
+function InvitePageSkeleton() {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-12"
+      style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+      <style>{styles}</style>
+      <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
+        style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+        <SyntraLogo />
+        <div className="space-y-4 animate-pulse">
+          <div className="h-16 rounded-xl bg-gray-100" />
+          <div className="h-8 rounded-lg bg-gray-100" />
+          <div className="h-12 rounded-xl bg-gray-100" />
+          <div className="h-12 rounded-xl bg-gray-100" />
+          <div className="h-12 rounded-xl bg-gray-100" />
+          <div className="h-12 rounded-xl bg-violet-100" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inner component (uses useSearchParams — must be inside Suspense) ─────────
+
+function InviteAcceptInner() {
   const router = useRouter();
   const params = useSearchParams();
 
-  // Decode params from the invite email link
-  const inviteKey = params.get("token") ?? "";           // email key (dots → underscores)
-  const workspaceId = params.get("workspace") ?? "";
+  const inviteKey     = params.get("token") ?? "";
+  const workspaceId   = params.get("workspace") ?? "";
   const workspaceName = decodeURIComponent(params.get("name") ?? "your workspace");
   const invitedByName = decodeURIComponent(params.get("invitedBy") ?? "your team");
-  // The actual email is stored in the invite doc — we read it below
-  const emailParam = decodeURIComponent(params.get("email") ?? "");
+  const emailParam    = decodeURIComponent(params.get("email") ?? "");
 
   const [formData, setFormData] = useState<FormData>({ fullName: "", password: "", confirmPassword: "" });
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors]     = useState<FormErrors>({});
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
+  const [isSubmitting, setIsSubmitting]   = useState(false);
 
   const strength = getPasswordStrength(formData.password);
 
@@ -84,7 +132,7 @@ export default function InviteAcceptPage() {
 
     setIsSubmitting(true);
     try {
-      // 1. Validate invite still exists and is not consumed
+      // 1. Validate invite
       const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
       if (!inviteSnap.exists() || inviteSnap.data().consumed) {
         setErrors({ general: "This invite link has already been used or has expired. Ask your workspace owner to send a new one." });
@@ -94,11 +142,9 @@ export default function InviteAcceptPage() {
       // 2. Create Firebase Auth account
       const credential = await createUserWithEmailAndPassword(auth, emailParam, formData.password);
       await updateProfile(credential.user, { displayName: formData.fullName });
-
-      // 3. Send email verification
       await sendEmailVerification(credential.user);
 
-      // 4. Accept the invite — add user to workspace members
+      // 3. Add to workspace members
       await setDoc(doc(db, "workspaces", workspaceId, "members", credential.user.uid), {
         uid: credential.user.uid,
         email: emailParam,
@@ -110,7 +156,7 @@ export default function InviteAcceptPage() {
         invitedAt: inviteSnap.data().invitedAt,
       });
 
-      // 5. Create user doc with workspace already linked
+      // 4. Create user doc — workspace already linked, skip onboarding
       await setDoc(doc(db, "users", credential.user.uid), {
         uid: credential.user.uid,
         email: emailParam,
@@ -118,19 +164,18 @@ export default function InviteAcceptPage() {
         photoURL: null,
         workspaceIds: [workspaceId],
         currentWorkspaceId: workspaceId,
-        onboardingComplete: true, // invited members skip onboarding
+        onboardingComplete: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // 6. Mark invite consumed
+      // 5. Mark invite consumed
       await setDoc(doc(db, "invites", inviteKey), {
         consumed: true,
         acceptedAt: serverTimestamp(),
         acceptedBy: credential.user.uid,
       }, { merge: true });
 
-      // 7. Redirect to verify email wall — must verify before dashboard
       router.push("/verify-email");
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
@@ -144,12 +189,16 @@ export default function InviteAcceptPage() {
     }
   }
 
-  // ─── Invalid link state ────────────────────────────────────────────────────
+  // ─── Invalid link ──────────────────────────────────────────────────────────
 
   if (!inviteKey || !workspaceId || !emailParam) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 text-center" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+      <div className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+        <style>{styles}</style>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 text-center card-glow"
+          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+          <SyntraLogo />
           <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#FEF2F2" }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
@@ -168,33 +217,13 @@ export default function InviteAcceptPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
-        .syntra-input { transition: all 0.15s ease; }
-        .syntra-input:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
-        .syntra-input.error { border-color: #EF4444; }
-        .btn-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
-        .btn-violet:hover:not(:disabled) { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); transform: translateY(-1px); }
-        .btn-violet:disabled { opacity: 0.6; cursor: not-allowed; }
-        .card-glow { box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 24px 60px -16px rgba(124,58,237,0.18); }
-      `}</style>
+      <style>{styles}</style>
 
       <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-7">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-              <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-            </svg>
-          </div>
-          <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "1.3rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</span>
-          <span className="text-[10px] tracking-[0.2em] uppercase mt-0.5" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</span>
-        </div>
+        <SyntraLogo />
 
-        {/* Invite context */}
+        {/* Invite context banner */}
         <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4 mb-7 text-center">
           <p className="text-xs text-violet-600 font-medium uppercase tracking-wide mb-1">You&apos;ve been invited</p>
           <p className="text-sm font-semibold text-gray-900">{invitedByName} invited you to join</p>
@@ -214,7 +243,7 @@ export default function InviteAcceptPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          {/* Email (read-only — pre-filled from invite) */}
+          {/* Email — read-only */}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
             <input type="email" value={emailParam} disabled
@@ -294,5 +323,15 @@ export default function InviteAcceptPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ─── Page export — wraps inner component in Suspense ──────────────────────────
+
+export default function InviteAcceptPage() {
+  return (
+    <Suspense fallback={<InvitePageSkeleton />}>
+      <InviteAcceptInner />
+    </Suspense>
   );
 }
