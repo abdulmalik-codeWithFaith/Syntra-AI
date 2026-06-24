@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/sidebar"
+import Sidebar from "@/components/sidebar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 
 type MeetingStatus = "Upcoming" | "Live" | "Processing" | "Completed";
 type PlatformType = "Google Meet" | "Zoom" | "Microsoft Teams";
@@ -26,7 +25,6 @@ interface Meeting {
 type FilterTab = "All" | MeetingStatus;
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
 
 const PLATFORM_ICON: Record<PlatformType, React.ReactNode> = {
   "Google Meet": (
@@ -50,8 +48,6 @@ const PLATFORM_ICON: Record<PlatformType, React.ReactNode> = {
     </svg>
   ),
 };
-
-
 
 const MEETINGS: Meeting[] = [
   {
@@ -94,46 +90,51 @@ const MEETINGS: Meeting[] = [
 const FILTER_TABS: FilterTab[] = ["All", "Upcoming", "Live", "Processing", "Completed"];
 
 const STATUS_STYLES: Record<MeetingStatus, { bg: string; color: string; dot: string }> = {
-  Live: { bg: "#FEE2E2", color: "#B91C1C", dot: "#EF4444" },
-  Upcoming: { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
+  Live:       { bg: "#FEE2E2", color: "#B91C1C", dot: "#EF4444" },
+  Upcoming:   { bg: "#EFF6FF", color: "#1D4ED8", dot: "#3B82F6" },
   Processing: { bg: "#FEF3C7", color: "#B45309", dot: "#F59E0B" },
-  Completed: { bg: "#EDE9FE", color: "#6D28D9", dot: "#7C3AED" },
+  Completed:  { bg: "#EDE9FE", color: "#6D28D9", dot: "#7C3AED" },
 };
-
 
 // ─── Topbar ───────────────────────────────────────────────────────────────────
 
 function Topbar() {
   return (
-    <div className="flex items-center gap-4 px-6 py-3.5 rounded-2xl border border-gray-100" style={{ background: "#F9FAFB" }}>
-      <div className="flex-1 relative max-w-md">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 rounded-2xl border border-gray-100 w-full" style={{ background: "#F9FAFB" }}>
+      {/* Search — grows but won't blow out the bar */}
+      <div className="flex-1 relative min-w-0">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </span>
         <input
           type="text"
-          placeholder="Search meetings, tasks, people..."
-          className="w-full bg-white rounded-xl border border-gray-200 pl-11 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
+          placeholder="Search meetings..."
+          className="w-full bg-white rounded-xl border border-gray-200 pl-9 pr-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
         />
       </div>
-      <div className="flex-1" />
-      <button title="Ask Syntra" className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
-        </svg>
-      </button>
-      <button title="Record meeting" className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="6" width="14" height="12" rx="2" /><path d="M16 10l5-3v10l-5-3" />
-        </svg>
-      </button>
-      <div className="flex items-center gap-2.5 pl-3 border-l border-gray-200">
-        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
+
+      {/* Action buttons — flex-shrink-0 so they never collapse */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button title="Ask Syntra" className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors flex-shrink-0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+          </svg>
+        </button>
+        <button title="Record meeting" className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors flex-shrink-0">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="6" width="14" height="12" rx="2" /><path d="M16 10l5-3v10l-5-3" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Avatar */}
+      <div className="flex items-center gap-2 pl-2 border-l border-gray-200 flex-shrink-0">
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
           MI
         </div>
-        <div className="hidden sm:block">
+        <div className="hidden lg:block">
           <p className="text-sm font-semibold text-gray-900 leading-tight">Musa Imran</p>
           <p className="text-xs text-gray-400 leading-tight">Admin</p>
         </div>
@@ -142,38 +143,38 @@ function Topbar() {
   );
 }
 
-// ─── Meeting row ────────────────────────────────────────────────────────────────
+// ─── Meeting row ──────────────────────────────────────────────────────────────
 
 function MeetingRow({ meeting }: { meeting: Meeting }) {
   const statusStyle = STATUS_STYLES[meeting.status];
   return (
     <a
       href={`/dashboard/meetings/${meeting.id}`}
-      className="flex items-center gap-4 px-5 py-4 rounded-2xl border border-gray-100 bg-white hover:border-violet-200 hover:shadow-sm transition-all duration-150 group"
+      className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-gray-100 bg-white hover:border-violet-200 hover:shadow-sm transition-all duration-150 group w-full min-w-0"
     >
       {/* Platform icon */}
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#F9FAFB" }}>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#F9FAFB" }}>
         {PLATFORM_ICON[meeting.platform]}
       </div>
 
-      {/* Title + meta */}
+      {/* Title + meta — min-w-0 + truncate to prevent overflow */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-violet-700 transition-colors">{meeting.title}</p>
           {meeting.status === "Live" && (
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase" style={{ color: statusStyle.dot }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: statusStyle.dot }} />
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase flex-shrink-0" style={{ color: statusStyle.dot }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: statusStyle.dot }} />
               Live
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">
+        <p className="text-xs text-gray-400 mt-0.5 truncate">
           {meeting.platform} · {meeting.date} at {meeting.time}
           {meeting.duration !== "—" && ` · ${meeting.duration}`}
         </p>
       </div>
 
-      {/* Extracted info (only when completed) */}
+      {/* Task / decision counts */}
       {meeting.status === "Completed" && (
         <div className="hidden md:flex items-center gap-4 flex-shrink-0">
           <div className="text-center">
@@ -190,44 +191,37 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
       {/* Attendees */}
       <div className="hidden sm:flex -space-x-2 flex-shrink-0">
         {meeting.attendees.slice(0, 3).map((a, i) => (
-          <div
-            key={i}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white"
-            style={{ background: a.color }}
-          >
+          <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white flex-shrink-0" style={{ background: a.color }}>
             {a.initials}
           </div>
         ))}
         {meeting.attendees.length > 3 && (
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 text-[10px] font-bold border-2 border-white bg-gray-100">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 text-[10px] font-bold border-2 border-white bg-gray-100 flex-shrink-0">
             +{meeting.attendees.length - 3}
           </div>
         )}
       </div>
 
       {/* Status badge */}
-      <span
-        className="text-xs font-medium px-3 py-1.5 rounded-full flex-shrink-0 hidden sm:block"
-        style={{ background: statusStyle.bg, color: statusStyle.color }}
-      >
+      <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 hidden sm:block" style={{ background: statusStyle.bg, color: statusStyle.color }}>
         {meeting.status}
       </span>
 
-      {/* PDF indicator */}
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ opacity: meeting.hasPDF ? 1 : 0 }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* PDF icon */}
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ opacity: meeting.hasPDF ? 1 : 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
         </svg>
       </div>
 
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
         <path d="M9 18l6-6-6-6" />
       </svg>
     </a>
   );
 }
 
-// ─── Empty state ────────────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState({ filter }: { filter: FilterTab }) {
   return (
@@ -238,35 +232,36 @@ function EmptyState({ filter }: { filter: FilterTab }) {
         </svg>
       </div>
       <p className="text-sm font-semibold text-gray-900 mb-1">No {filter !== "All" ? filter.toLowerCase() : ""} meetings</p>
-      <p className="text-xs text-gray-400">Connect a calendar so Syntra can start joining meetings automatically.</p>
+      <p className="text-xs text-gray-400 text-center px-4">Connect a calendar so Syntra can start joining meetings automatically.</p>
     </div>
   );
 }
 
-// ─── Main Meetings Page ───────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MeetingsPage() {
-  const [collapsed, setCollapsed] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
 
   const filteredMeetings = activeFilter === "All" ? MEETINGS : MEETINGS.filter((m) => m.status === activeFilter);
 
   const counts: Record<FilterTab, number> = {
-    All: MEETINGS.length,
-    Upcoming: MEETINGS.filter((m) => m.status === "Upcoming").length,
-    Live: MEETINGS.filter((m) => m.status === "Live").length,
+    All:        MEETINGS.length,
+    Upcoming:   MEETINGS.filter((m) => m.status === "Upcoming").length,
+    Live:       MEETINGS.filter((m) => m.status === "Live").length,
     Processing: MEETINGS.filter((m) => m.status === "Processing").length,
-    Completed: MEETINGS.filter((m) => m.status === "Completed").length,
+    Completed:  MEETINGS.filter((m) => m.status === "Completed").length,
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen flex overflow-hidden" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
-        .btn-outline-violet { border: 1.5px solid rgba(124, 58, 237, 0.3); color: #7C3AED; transition: all 0.15s ease; }
-        .btn-outline-violet:hover { background: rgba(124, 58, 237, 0.06); border-color: #7C3AED; }
-        .btn-primary-violet { background: linear-gradient(135deg, #7C3AED, #6D28D9); transition: all 0.2s ease; }
-        .btn-primary-violet:hover { background: linear-gradient(135deg, #8B5CF6, #7C3AED); box-shadow: 0 8px 20px rgba(124, 58, 237, 0.3); }
+        .btn-outline-violet { border: 1.5px solid rgba(124,58,237,0.3); color: #7C3AED; transition: all 0.15s ease; }
+        .btn-outline-violet:hover { background: rgba(124,58,237,0.06); border-color: #7C3AED; }
+        .btn-primary-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
+        .btn-primary-violet:hover { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); }
+        .filter-scroll { scrollbar-width: none; }
+        .filter-scroll::-webkit-scrollbar { display: none; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -274,70 +269,73 @@ export default function MeetingsPage() {
 
       <Sidebar activeId="meetings" />
 
-      <main className="flex-1 px-6 sm:px-8 py-6 max-w-[1600px]">
+      {/* main must have min-w-0 to not blow past the sidebar */}
+      <main className="flex-1 min-w-0 flex flex-col px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto">
+
         <Topbar />
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-8 mb-6">
           <div>
-            <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "2.25rem", color: "#111827" }}>
+            <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem, 4vw, 2.25rem)", color: "#111827" }}>
               Meetings
             </h1>
             <p className="text-gray-500 text-sm mt-1">Every meeting Syntra has joined, is joining, or will join.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="btn-outline-violet text-sm font-semibold rounded-xl px-5 py-2.5 bg-white flex items-center gap-2">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <button className="btn-outline-violet text-sm font-semibold rounded-xl px-4 py-2.5 bg-white flex items-center gap-2 whitespace-nowrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07L11.5 4.5" /><path d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07L12.5 19.5" />
               </svg>
-              Paste meeting link
+              Paste link
             </button>
-            <button className="btn-primary-violet text-white text-sm font-semibold rounded-xl px-5 py-2.5 flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <button className="btn-primary-violet text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Schedule meeting
+              Schedule
             </button>
           </div>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-1.5 mb-6 overflow-x-auto pb-1">
-          {FILTER_TABS.map((tab) => {
-            const isActive = activeFilter === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveFilter(tab)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150"
-                style={{
-                  background: isActive ? "linear-gradient(135deg, #7C3AED, #6D28D9)" : "#fff",
-                  color: isActive ? "#fff" : "#6B7280",
-                  border: isActive ? "1px solid transparent" : "1px solid #E5E7EB",
-                }}
-              >
-                {tab}
-                <span
-                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+        {/* Filter tabs — scrollable on mobile, no outer overflow */}
+        <div className="filter-scroll overflow-x-auto mb-6 -mx-1 px-1">
+          <div className="flex items-center gap-1.5 w-max">
+            {FILTER_TABS.map((tab) => {
+              const isActive = activeFilter === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveFilter(tab)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 flex-shrink-0"
                   style={{
-                    background: isActive ? "rgba(255,255,255,0.2)" : "#F3F4F6",
-                    color: isActive ? "#fff" : "#9CA3AF",
+                    background: isActive ? "linear-gradient(135deg,#7C3AED,#6D28D9)" : "#fff",
+                    color: isActive ? "#fff" : "#6B7280",
+                    border: isActive ? "1px solid transparent" : "1px solid #E5E7EB",
                   }}
                 >
-                  {counts[tab]}
-                </span>
-              </button>
-            );
-          })}
+                  {tab}
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: isActive ? "rgba(255,255,255,0.2)" : "#F3F4F6",
+                      color: isActive ? "#fff" : "#9CA3AF",
+                    }}
+                  >
+                    {counts[tab]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Meetings list */}
+        {/* Meeting list */}
         <div className="space-y-2.5 pb-8">
-          {filteredMeetings.length > 0 ? (
-            filteredMeetings.map((m) => <MeetingRow key={m.id} meeting={m} />)
-          ) : (
-            <EmptyState filter={activeFilter} />
-          )}
+          {filteredMeetings.length > 0
+            ? filteredMeetings.map((m) => <MeetingRow key={m.id} meeting={m} />)
+            : <EmptyState filter={activeFilter} />
+          }
         </div>
       </main>
     </div>

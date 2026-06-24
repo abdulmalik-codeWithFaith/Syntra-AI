@@ -66,7 +66,7 @@ const STATUS_STYLES: Record<TeamMember["status"], { bg: string; color: string }>
 
 function Topbar() {
   return (
-    <div className="flex items-center gap-4 px-6 py-3.5 rounded-2xl border border-gray-100" style={{ background: "#F9FAFB" }}>
+    <div className="md:flex hidden items-center gap-4 px-6 py-3.5 rounded-2xl border border-gray-100" style={{ background: "#F9FAFB" }}>
       {/* Search */}
       <div className="flex-1 relative max-w-md">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
