@@ -1,16 +1,5 @@
 "use client";
 
-// app/invite/accept/page.tsx
-// Invited members land here from their email link:
-// /invite/accept?token=<inviteKey>&workspace=<workspaceId>&name=<workspaceName>&invitedBy=<name>
-//
-// Flow:
-//   1. Show workspace info from URL params
-//   2. User enters their full name + password
-//   3. createUserWithEmailAndPassword → sendEmailVerification
-//   4. bootstrapNewUser() picks up the Firestore invite and auto-accepts
-//   5. Redirect to /verify-email (must verify before dashboard)
-
 import { useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
