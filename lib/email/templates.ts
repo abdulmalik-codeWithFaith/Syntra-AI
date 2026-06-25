@@ -1,5 +1,3 @@
-
-
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const BRAND_VIOLET = "#7C3AED";
 const BRAND_BLUE = "#2563EB";
@@ -114,7 +112,47 @@ export function verificationEmailTemplate(params: {
   return { subject, html, text };
 }
 
-// ─── 2. Workspace invite (sent from onboarding Step 4 / Team page) ────────────
+// ─── 2. Password reset ────────────────────────────────────────────────────────
+
+export function passwordResetEmailTemplate(params: {
+  fullName: string;
+  resetLink: string;
+}): { subject: string; html: string; text: string } {
+  const subject = "Reset your Syntra AI password";
+
+  const html = wrap(`
+    <tr>
+      <td style="padding:40px 40px 0;">
+        <p style="margin:0 0 8px;font-size:24px;font-weight:700;color:#111827;">Reset your password</p>
+        <p style="margin:0;font-size:14px;color:#6B7280;line-height:1.6;">
+          Hi ${params.fullName}, we received a request to reset the password for your Syntra AI account. Click the button below to choose a new one.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:32px 40px;">
+        ${button("Reset password", params.resetLink)}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 40px 32px;">
+        <p style="margin:0 0 8px;font-size:12px;color:#9CA3AF;">Or copy and paste this link into your browser:</p>
+        <p style="margin:0;font-size:11px;color:#7C3AED;word-break:break-all;">${params.resetLink}</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px 40px;background:#F9FAFB;border-top:1px solid #F3F4F6;">
+        <p style="margin:0;font-size:12px;color:#9CA3AF;">This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email — your password will not change.</p>
+      </td>
+    </tr>
+  `);
+
+  const text = `Hi ${params.fullName},\n\nReset your Syntra AI password:\n${params.resetLink}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`;
+
+  return { subject, html, text };
+}
+
+// ─── 3. Workspace invite (sent from onboarding Step 4 / Team page) ────────────
 
 export function inviteEmailTemplate(params: {
   invitedByName: string;
@@ -171,7 +209,7 @@ export function inviteEmailTemplate(params: {
   return { subject, html, text };
 }
 
-// ─── 3. Welcome email (sent after onboarding activation) ─────────────────────
+// ─── 4. Welcome email (sent after onboarding activation) ─────────────────────
 
 export function welcomeEmailTemplate(params: {
   fullName: string;
@@ -230,7 +268,7 @@ export function welcomeEmailTemplate(params: {
   return { subject, html, text };
 }
 
-// ─── 4. Meeting summary email (sent after meeting ends) ───────────────────────
+// ─── 5. Meeting summary email (sent after meeting ends) ───────────────────────
 
 export function meetingSummaryEmailTemplate(params: {
   recipientName: string;

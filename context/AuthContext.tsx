@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   ReactNode,
 } from "react";
 import {
@@ -15,7 +16,6 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
-  sendPasswordResetEmail,
   updateProfile,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -52,16 +52,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
+  // Prevents the auth listener from racing against signUpWithEmail's
+  // createUserDocument call — the doc may not exist yet when the listener fires
+  const skipListenerFetch = useRef(false);
+
   // Listen to auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
 
-      if (firebaseUser) {
+      if (firebaseUser && !skipListenerFetch.current) {
         const docRef = doc(db, "users", firebaseUser.uid);
         const snap = await getDoc(docRef);
         setUserDoc(snap.exists() ? (snap.data() as UserDoc) : null);
-      } else {
+      } else if (!firebaseUser) {
         setUserDoc(null);
       }
 
@@ -104,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ─── Auth actions ─────────────────────────────────────────────────────────
+  // ─── Auth actions ──────────────────────────────────────────────────────────
 
   async function signInWithEmail(email: string, password: string) {
     const result = await signInWithEmailAndPassword(auth, email, password);
@@ -116,9 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signUpWithEmail(email: string, password: string, fullName: string) {
+    // Block the auth listener from reading Firestore before the doc is written
+    skipListenerFetch.current = true;
     const result = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(result.user, { displayName: fullName });
     await createUserDocument(result.user, fullName);
+    skipListenerFetch.current = false;
     router.push("/onboarding");
   }
 
@@ -141,7 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetPassword(email: string) {
-    await sendPasswordResetEmail(auth, email);
+    // Use the currently signed-in user's display name if available,
+    // otherwise fall back to the email prefix
+    const fullName = user?.displayName ?? email.split("@")[0];
+
+    await fetch("/api/email/send-password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, fullName }),
+    });
   }
 
   // ─── Value ────────────────────────────────────────────────────────────────

@@ -7,7 +7,9 @@ let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter {
   if (transporter) return transporter;
-
+  console.log("NODEMAILER_HOST:", process.env.NODEMAILER_HOST);
+  console.log("NODEMAILER_PORT:", process.env.NODEMAILER_PORT);
+  console.log("NODEMAILER_USER:", process.env.NODEMAILER_USER);
   transporter = nodemailer.createTransport({
     host: process.env.NODEMAILER_HOST!,
     port: Number(process.env.NODEMAILER_PORT ?? 587),

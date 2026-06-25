@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -28,10 +28,30 @@ interface FormErrors {
 
 const googleProvider = new GoogleAuthProvider();
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Resend branded verification email via Nodemailer API route
+async function sendBrandedVerification(uid: string, email: string, fullName: string): Promise<void> {
+  try {
+    await fetch("/api/email/send-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid, email, fullName }),
+    });
+  } catch {
+    // Non-critical — Firebase's own verification email is a fallback
+    console.warn("Branded verification email failed to send");
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ?verified=true lands here after clicking email verification link
+  const justVerified = searchParams.get("verified") === "true";
 
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
@@ -43,39 +63,31 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
 
-  // Show when user is signed in but email not verified
-  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  // Email not verified — show verification wall instead of form
+  const [unverifiedUser, setUnverifiedUser] = useState<{
+    uid: string;
+    email: string;
+    fullName: string;
+  } | null>(null);
   const [resendLoading, setResendLoading] = useState<boolean>(false);
   const [resendSent, setResendSent] = useState<boolean>(false);
 
-  function validate(): boolean {
-    const next: FormErrors = {};
-    if (!formData.email.trim()) {
-      next.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      next.email = "Enter a valid email address";
-    }
-    if (!formData.password) {
-      next.password = "Password is required";
-    }
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
   // ─── Redirect logic ────────────────────────────────────────────────────────
-  // After successful auth, check:
-  //   1. Email verified?     → no  → sign out + show verification prompt
-  //   2. Onboarding done?    → no  → /onboarding
-  //   3. Has workspace?      → yes → /dashboard/overview
-  //                          → no  → /onboarding
+  // 1. Not email-verified → show verification wall
+  // 2. Onboarding not done → /onboarding
+  // 3. Has workspace → /dashboard/overview
 
-  async function resolveRedirect(uid: string, emailVerified: boolean, userEmail: string): Promise<void> {
+  async function resolveRedirect(
+    uid: string,
+    emailVerified: boolean,
+    userEmail: string,
+    displayName: string
+  ): Promise<void> {
     if (!emailVerified) {
-      // Sign them out immediately and show the verification wall
-      const currentUser = auth.currentUser;
-      if (currentUser) await sendEmailVerification(currentUser);
       await signOut(auth);
-      setUnverifiedEmail(userEmail);
+      setUnverifiedUser({ uid, email: userEmail, fullName: displayName });
+      // Send branded verification email via Nodemailer
+      await sendBrandedVerification(uid, userEmail, displayName);
       return;
     }
 
@@ -95,6 +107,18 @@ export default function LoginPage() {
 
   // ─── Email login ───────────────────────────────────────────────────────────
 
+  function validate(): boolean {
+    const next: FormErrors = {};
+    if (!formData.email.trim()) {
+      next.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      next.email = "Enter a valid email address";
+    }
+    if (!formData.password) next.password = "Password is required";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
@@ -103,7 +127,13 @@ export default function LoginPage() {
 
     try {
       const result = await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      await resolveRedirect(result.user.uid, result.user.emailVerified, result.user.email ?? formData.email);
+      const { user } = result;
+      await resolveRedirect(
+        user.uid,
+        user.emailVerified,
+        user.email ?? formData.email,
+        user.displayName ?? formData.email
+      );
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
       if (
@@ -131,8 +161,9 @@ export default function LoginPage() {
     setErrors({});
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      const { user } = result;
       // Google accounts are always email-verified
-      await resolveRedirect(result.user.uid, true, result.user.email ?? "");
+      await resolveRedirect(user.uid, true, user.email ?? "", user.displayName ?? "");
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
       if (code !== "auth/popup-closed-by-user") {
@@ -146,16 +177,29 @@ export default function LoginPage() {
   // ─── Resend verification ───────────────────────────────────────────────────
 
   async function handleResend() {
-    if (!formData.email || !formData.password) return;
+    if (!unverifiedUser) return;
     setResendLoading(true);
     try {
-      // Sign in temporarily to get the user object, then send verification
-      const result = await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      await sendEmailVerification(result.user);
-      await signOut(auth);
+      // Try branded email first
+      await sendBrandedVerification(
+        unverifiedUser.uid,
+        unverifiedUser.email,
+        unverifiedUser.fullName
+      );
+      // Fallback: also trigger Firebase's own verification
+      // (requires signing in briefly to get a User object)
+      if (formData.password) {
+        try {
+          const result = await signInWithEmailAndPassword(auth, unverifiedUser.email, formData.password);
+          await sendEmailVerification(result.user);
+          await signOut(auth);
+        } catch {
+          // silently ignore — branded email already sent above
+        }
+      }
       setResendSent(true);
     } catch {
-      // silently fail — user can try logging in again
+      // silently fail
     } finally {
       setResendLoading(false);
     }
@@ -163,37 +207,57 @@ export default function LoginPage() {
 
   function updateField<K extends keyof LoginFormData>(field: K, value: LoginFormData[K]) {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field as keyof FormErrors]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
+    if (errors[field as keyof FormErrors]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     if (errors.general) setErrors((prev) => ({ ...prev, general: undefined }));
   }
 
   const anyLoading = isSubmitting || isGoogleLoading;
 
-  // ─── Unverified email wall ─────────────────────────────────────────────────
+  // ─── Shared styles ─────────────────────────────────────────────────────────
 
-  if (unverifiedEmail) {
+  const sharedStyles = `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
+    .syntra-input { transition: all 0.15s ease; }
+    .syntra-input:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
+    .syntra-input.error { border-color: #EF4444; }
+    .syntra-input.error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12); }
+    .btn-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
+    .btn-violet:hover:not(:disabled) { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); transform: translateY(-1px); }
+    .btn-violet:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-google { transition: all 0.15s ease; }
+    .btn-google:hover:not(:disabled) { border-color: #D1D5DB; background: #F9FAFB; }
+    .btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+    .card-glow { box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 24px 60px -16px rgba(124,58,237,0.18); }
+    .checkbox-custom { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; border: 1.5px solid #D1D5DB; border-radius: 5px; cursor: pointer; position: relative; flex-shrink: 0; transition: all 0.15s ease; }
+    .checkbox-custom:checked { background: #7C3AED; border-color: #7C3AED; }
+    .checkbox-custom:checked::after { content:''; position:absolute; left:4.5px; top:0.5px; width:5px; height:9px; border:solid white; border-width:0 2px 2px 0; transform:rotate(45deg); }
+  `;
+
+  const Logo = () => (
+    <div className="flex flex-col items-center mb-7">
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+        style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      </div>
+      <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "1.3rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</span>
+      <span className="text-[10px] tracking-[0.2em] uppercase mt-0.5" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</span>
+    </div>
+  );
+
+  // ─── Unverified wall ───────────────────────────────────────────────────────
+
+  if (unverifiedUser) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 py-12"
         style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap'); .card-glow { box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 24px 60px -16px rgba(124,58,237,0.18); }`}</style>
+        <style>{sharedStyles}</style>
         <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow text-center"
           style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-          {/* Logo */}
-          <div className="flex flex-col items-center mb-7">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "1.3rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</span>
-            <span className="text-[10px] tracking-[0.2em] uppercase mt-0.5" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</span>
-          </div>
+          <Logo />
 
-          {/* Email icon */}
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
             style={{ background: "rgba(124,58,237,0.1)" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -202,80 +266,69 @@ export default function LoginPage() {
             </svg>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Verify your email</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your inbox</h1>
           <p className="text-sm text-gray-500 mb-1">We sent a verification link to</p>
-          <p className="text-sm font-semibold text-gray-800 mb-6">{unverifiedEmail}</p>
+          <p className="text-sm font-semibold text-gray-800 mb-5">{unverifiedUser.email}</p>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 text-left mb-6">
-            You must verify your email before accessing your dashboard. Check your inbox and click the link we sent.
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 text-left mb-6 leading-relaxed">
+            You need to verify your email before accessing your dashboard. Click the link in the email we just sent — it expires in 24 hours.
           </div>
 
-          <p className="text-xs text-gray-400 mb-4">Didn&apos;t get it? Check your spam folder.</p>
-
           {resendSent ? (
-            <p className="text-sm font-medium" style={{ color: "#059669" }}>✓ Verification email resent.</p>
+            <p className="text-sm font-medium mb-4" style={{ color: "#059669" }}>
+              ✓ Verification email resent. Check your inbox.
+            </p>
           ) : (
-            <button onClick={handleResend} disabled={resendLoading}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white mb-3"
-              style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)", opacity: resendLoading ? 0.6 : 1 }}>
+            <button
+              onClick={handleResend}
+              disabled={resendLoading}
+              className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3 mb-3"
+            >
               {resendLoading ? "Resending..." : "Resend verification email"}
             </button>
           )}
 
-          <button onClick={() => setUnverifiedEmail(null)}
-            className="w-full py-3 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-            Back to login
+          <p className="text-xs text-gray-400 mb-4">
+            Didn&apos;t get it? Check your spam folder. The email comes from{" "}
+            <span className="font-medium">{process.env.NEXT_PUBLIC_APP_URL?.replace("https://", "") ?? "syntra.ai"}</span>
+          </p>
+
+          <button
+            onClick={() => { setUnverifiedUser(null); setResendSent(false); }}
+            className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+            ← Back to login
           </button>
         </div>
       </div>
     );
   }
 
-  // ─── Login form ────────────────────────────────────────────────────────────
+  // ─── Main login form ───────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
-        .syntra-input { transition: all 0.15s ease; }
-        .syntra-input:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,0.12); }
-        .syntra-input.error { border-color: #EF4444; }
-        .syntra-input.error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12); }
-        .btn-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
-        .btn-violet:hover:not(:disabled) { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); transform: translateY(-1px); }
-        .btn-violet:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn-google { transition: all 0.15s ease; }
-        .btn-google:hover:not(:disabled) { border-color: #D1D5DB; background: #F9FAFB; }
-        .btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
-        .card-glow { box-shadow: 0 0 0 1px rgba(124,58,237,0.15), 0 24px 60px -16px rgba(124,58,237,0.18); }
-        .checkbox-custom { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; border: 1.5px solid #D1D5DB; border-radius: 5px; cursor: pointer; position: relative; flex-shrink: 0; transition: all 0.15s ease; }
-        .checkbox-custom:checked { background: #7C3AED; border-color: #7C3AED; }
-        .checkbox-custom:checked::after { content:''; position:absolute; left:4.5px; top:0.5px; width:5px; height:9px; border:solid white; border-width:0 2px 2px 0; transform:rotate(45deg); }
-      `}</style>
+      <style>{sharedStyles}</style>
 
       <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-7">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-              <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-            </svg>
-          </div>
-          <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "1.3rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</span>
-          <span className="text-[10px] tracking-[0.2em] uppercase mt-0.5" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</span>
-        </div>
+        <Logo />
 
-        {/* Heading */}
+        {/* Just verified banner */}
+        {justVerified && (
+          <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Email verified! Log in to access your dashboard.
+          </div>
+        )}
+
         <div className="text-center mb-7">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back</h1>
           <p className="text-gray-500 text-sm">Log in to your Syntra AI account</p>
         </div>
 
-        {/* General error */}
         {errors.general && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {errors.general}
@@ -306,14 +359,12 @@ export default function LoginPage() {
           )}
         </button>
 
-        {/* Divider */}
         <div className="flex items-center gap-3 mb-6">
           <div className="flex-1 h-px bg-gray-200" />
           <span className="text-xs text-gray-400">or continue with email</span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
@@ -333,7 +384,7 @@ export default function LoginPage() {
                 value={formData.password} onChange={(e) => updateField("password", e.target.value)}
                 className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.password ? "error" : "border-gray-200"}`} />
               <button type="button" onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" aria-label="Toggle password">
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPassword
                   ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                   : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>

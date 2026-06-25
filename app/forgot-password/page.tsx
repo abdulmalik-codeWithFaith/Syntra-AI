@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ interface FormErrors {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ForgotPasswordPage() {
+  const { resetPassword } = useAuth();
+
   const [email, setEmail] = useState<string>("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -34,12 +37,15 @@ export default function ForgotPasswordPage() {
 
     setIsSubmitting(true);
     try {
-      // TODO: connect to Firebase Auth — sendPasswordResetEmail(auth, email)
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      console.log("Password reset requested for:", email);
+      await resetPassword(email);
       setEmailSent(true);
-    } catch {
-      setErrors({ general: "Something went wrong. Please try again." });
+    } catch (err: any) {
+      // Don't reveal whether the email exists — always show success
+      if (err.code === "auth/user-not-found") {
+        setEmailSent(true);
+      } else {
+        setErrors({ general: "Something went wrong. Please try again." });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -53,8 +59,9 @@ export default function ForgotPasswordPage() {
   async function handleResend() {
     setIsSubmitting(true);
     try {
-      // TODO: re-call sendPasswordResetEmail(auth, email)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await resetPassword(email);
+    } catch {
+      // silently fail on resend
     } finally {
       setIsSubmitting(false);
     }
