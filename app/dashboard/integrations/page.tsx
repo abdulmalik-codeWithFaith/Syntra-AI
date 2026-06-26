@@ -70,35 +70,6 @@ const IntegrationIcons: Record<string, React.ReactNode> = {
       <path fill="#111" d="M9 9h5M9 12h5M9 15h3" stroke="none" />
     </svg>
   ),
-  cloudinary: (
-    <svg width="28" height="28" viewBox="0 0 24 24">
-      <rect width="24" height="24" rx="5" fill="#3448C5" />
-      <path fill="white" d="M12 5C8.5 5 6 7.5 6 10.5c0 .3 0 .6.1.9C4.8 12 4 13.1 4 14.5 4 16.4 5.6 18 7.5 18H17c1.7 0 3-1.3 3-3 0-1.4-.9-2.6-2.2-2.9-.1-3.9-2.7-7.1-5.8-7.1z" />
-    </svg>
-  ),
-  firebase: (
-    <svg width="28" height="28" viewBox="0 0 24 24">
-      <rect width="24" height="24" rx="5" fill="#FFA000" />
-      <path fill="#FFF9C4" d="M7 19l3-9.5L12 12l2-5 3 12H7z" />
-      <path fill="white" opacity="0.5" d="M10 9.5L7 19h5l-2-9.5z" />
-    </svg>
-  ),
-  nodemailer: (
-    <svg width="28" height="28" viewBox="0 0 24 24">
-      <rect width="24" height="24" rx="5" fill="#059669" />
-      <path fill="white" d="M4 8l8 5 8-5v8a1 1 0 01-1 1H5a1 1 0 01-1-1V8z" />
-      <path fill="white" opacity="0.7" d="M4 8a1 1 0 011-1h14a1 1 0 011 1l-8 5-8-5z" />
-    </svg>
-  ),
-  outlook: (
-    <svg width="28" height="28" viewBox="0 0 24 24">
-      <rect width="24" height="24" rx="5" fill="#0078D4" />
-      <rect x="3" y="6" width="12" height="12" rx="1.5" fill="#28A8E8" />
-      <path fill="white" d="M9 9.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5z" />
-      <rect x="15" y="6" width="6" height="5" rx="1" fill="white" opacity="0.9" />
-      <rect x="15" y="13" width="6" height="5" rx="1" fill="white" opacity="0.6" />
-    </svg>
-  ),
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -135,68 +106,6 @@ const INTEGRATIONS: Integration[] = [
     icon: IntegrationIcons.zoom,
     connectedAccount: "musa@synthcorp.com",
     connectedSince: "Jan 14, 2026",
-  },
-  {
-    id: "cloudinary",
-    name: "Cloudinary",
-    description: "Store generated PDF reports and meeting assets securely in the cloud.",
-    category: "Storage",
-    status: "connected",
-    icon: IntegrationIcons.cloudinary,
-    connectedAccount: "synthcorp",
-    connectedSince: "Jan 12, 2026",
-  },
-  {
-    id: "firebase",
-    name: "Firebase",
-    description: "Authentication, workspace data, and real-time sync powered by Firebase.",
-    category: "Storage",
-    status: "connected",
-    icon: IntegrationIcons.firebase,
-    connectedAccount: "synthcorp-ai",
-    connectedSince: "Jan 12, 2026",
-  },
-  {
-    id: "nodemailer",
-    name: "Nodemailer",
-    description: "Send team invites, meeting reminders, and post-meeting report emails.",
-    category: "Communication",
-    status: "connected",
-    icon: IntegrationIcons.nodemailer,
-    connectedAccount: "smtp.synthcorp.com",
-    connectedSince: "Jan 15, 2026",
-  },
-  {
-    id: "teams",
-    name: "Microsoft Teams",
-    description: "Bring Syntra into Teams meetings to capture tasks and generate reports.",
-    category: "Meetings",
-    status: "disconnected",
-    icon: IntegrationIcons.teams,
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Send post-meeting summaries and task assignments directly to Slack channels.",
-    category: "Communication",
-    status: "disconnected",
-    icon: IntegrationIcons.slack,
-  },
-  {
-    id: "outlook",
-    name: "Microsoft Outlook",
-    description: "Sync your Outlook calendar so Syntra can join scheduled meetings automatically.",
-    category: "Calendar",
-    status: "disconnected",
-    icon: IntegrationIcons.outlook,
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Push meeting summaries, tasks, and decisions directly into your Notion workspace.",
-    category: "Communication",
-    status: "coming_soon",
-    icon: IntegrationIcons.notion,
   },
 ];
 

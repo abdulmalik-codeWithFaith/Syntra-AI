@@ -1,7 +1,7 @@
 // app/api/email/send-verification/route.ts
 // POST /api/email/send-verification
-// Called from signup after createUserWithEmailAndPassword
-// Sends branded verification email via Nodemailer (instead of Firebase's default)
+// Called after signup (normal or invite) to send branded verification email
+// Guards against sending if already verified to avoid Firebase rate limits
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/mailer";
@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
 
     if (!uid || !email || !fullName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Guard: skip if already verified — prevents Firebase TOO_MANY_ATTEMPTS errors
+    const userRecord = await adminAuth.getUser(uid);
+    if (userRecord.emailVerified) {
+      return NextResponse.json({ success: true, alreadyVerified: true }, { status: 200 });
     }
 
     // Generate a Firebase email verification link via Admin SDK

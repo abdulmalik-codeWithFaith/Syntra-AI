@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  sendEmailVerification,
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -30,7 +29,6 @@ const googleProvider = new GoogleAuthProvider();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Resend branded verification email via Nodemailer API route
 async function sendBrandedVerification(uid: string, email: string, fullName: string): Promise<void> {
   try {
     await fetch("/api/email/send-verification", {
@@ -39,18 +37,15 @@ async function sendBrandedVerification(uid: string, email: string, fullName: str
       body: JSON.stringify({ uid, email, fullName }),
     });
   } catch {
-    // Non-critical — Firebase's own verification email is a fallback
     console.warn("Branded verification email failed to send");
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Inner component ──────────────────────────────────────────────────────────
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // ?verified=true lands here after clicking email verification link
   const justVerified = searchParams.get("verified") === "true";
 
   const [formData, setFormData] = useState<LoginFormData>({
@@ -59,23 +54,19 @@ export default function LoginPage() {
     rememberMe: false,
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // Email not verified — show verification wall instead of form
   const [unverifiedUser, setUnverifiedUser] = useState<{
     uid: string;
     email: string;
     fullName: string;
   } | null>(null);
-  const [resendLoading, setResendLoading] = useState<boolean>(false);
-  const [resendSent, setResendSent] = useState<boolean>(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   // ─── Redirect logic ────────────────────────────────────────────────────────
-  // 1. Not email-verified → show verification wall
-  // 2. Onboarding not done → /onboarding
-  // 3. Has workspace → /dashboard/overview
 
   async function resolveRedirect(
     uid: string,
@@ -83,25 +74,42 @@ export default function LoginPage() {
     userEmail: string,
     displayName: string
   ): Promise<void> {
+    // 1. Email not verified → show verification wall
+    //    But only send verification email if they signed up normally (not via invite)
     if (!emailVerified) {
       await signOut(auth);
+
+      // Check if this is an invited member (onboardingComplete = true means invite flow)
+      // Invited members already got the verification email at signup — don't resend yet
+      const snap = await getDoc(doc(db, "users", uid));
+      const isInvitedMember = snap.exists() && snap.data().onboardingComplete === true;
+
       setUnverifiedUser({ uid, email: userEmail, fullName: displayName });
-      // Send branded verification email via Nodemailer
-      await sendBrandedVerification(uid, userEmail, displayName);
+
+      if (!isInvitedMember) {
+        // Normal signup — send branded verification
+        await sendBrandedVerification(uid, userEmail, displayName);
+      }
       return;
     }
 
+    // 2. Email verified — read user doc and route accordingly
     const snap = await getDoc(doc(db, "users", uid));
+
     if (!snap.exists()) {
+      // No user doc yet — send to onboarding to create workspace
       router.push("/onboarding");
       return;
     }
 
     const data = snap.data();
-    if (!data.onboardingComplete || !data.currentWorkspaceId) {
-      router.push("/onboarding");
-    } else {
+
+    // Invited members: onboardingComplete=true and currentWorkspaceId is set
+    // Normal signups: onboardingComplete=false until they finish onboarding
+    if (data.onboardingComplete && data.currentWorkspaceId) {
       router.push("/dashboard");
+    } else {
+      router.push("/onboarding");
     }
   }
 
@@ -162,7 +170,6 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const { user } = result;
-      // Google accounts are always email-verified
       await resolveRedirect(user.uid, true, user.email ?? "", user.displayName ?? "");
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
@@ -180,23 +187,11 @@ export default function LoginPage() {
     if (!unverifiedUser) return;
     setResendLoading(true);
     try {
-      // Try branded email first
       await sendBrandedVerification(
         unverifiedUser.uid,
         unverifiedUser.email,
         unverifiedUser.fullName
       );
-      // Fallback: also trigger Firebase's own verification
-      // (requires signing in briefly to get a User object)
-      if (formData.password) {
-        try {
-          const result = await signInWithEmailAndPassword(auth, unverifiedUser.email, formData.password);
-          await sendEmailVerification(result.user);
-          await signOut(auth);
-        } catch {
-          // silently ignore — branded email already sent above
-        }
-      }
       setResendSent(true);
     } catch {
       // silently fail
@@ -213,7 +208,7 @@ export default function LoginPage() {
 
   const anyLoading = isSubmitting || isGoogleLoading;
 
-  // ─── Shared styles ─────────────────────────────────────────────────────────
+  // ─── Styles ────────────────────────────────────────────────────────────────
 
   const sharedStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
@@ -257,7 +252,6 @@ export default function LoginPage() {
         <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow text-center"
           style={{ borderColor: "rgba(124,58,237,0.15)" }}>
           <Logo />
-
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
             style={{ background: "rgba(124,58,237,0.1)" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -265,36 +259,26 @@ export default function LoginPage() {
               <polyline points="22,6 12,13 2,6" />
             </svg>
           </div>
-
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your inbox</h1>
           <p className="text-sm text-gray-500 mb-1">We sent a verification link to</p>
           <p className="text-sm font-semibold text-gray-800 mb-5">{unverifiedUser.email}</p>
-
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 text-left mb-6 leading-relaxed">
             You need to verify your email before accessing your dashboard. Click the link in the email we just sent — it expires in 24 hours.
           </div>
-
           {resendSent ? (
             <p className="text-sm font-medium mb-4" style={{ color: "#059669" }}>
               ✓ Verification email resent. Check your inbox.
             </p>
           ) : (
-            <button
-              onClick={handleResend}
-              disabled={resendLoading}
-              className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3 mb-3"
-            >
+            <button onClick={handleResend} disabled={resendLoading}
+              className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3 mb-3">
               {resendLoading ? "Resending..." : "Resend verification email"}
             </button>
           )}
-
           <p className="text-xs text-gray-400 mb-4">
-            Didn&apos;t get it? Check your spam folder. The email comes from{" "}
-            <span className="font-medium">{process.env.NEXT_PUBLIC_APP_URL?.replace("https://", "") ?? "syntra.ai"}</span>
+            Didn&apos;t get it? Check your spam folder.
           </p>
-
-          <button
-            onClick={() => { setUnverifiedUser(null); setResendSent(false); }}
+          <button onClick={() => { setUnverifiedUser(null); setResendSent(false); }}
             className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
             ← Back to login
           </button>
@@ -314,7 +298,6 @@ export default function LoginPage() {
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
         <Logo />
 
-        {/* Just verified banner */}
         {justVerified && (
           <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -395,7 +378,8 @@ export default function LoginPage() {
           </div>
 
           <label className="flex items-center gap-2.5 cursor-pointer">
-            <input type="checkbox" checked={formData.rememberMe} onChange={(e) => updateField("rememberMe", e.target.checked)} className="checkbox-custom" />
+            <input type="checkbox" checked={formData.rememberMe}
+              onChange={(e) => updateField("rememberMe", e.target.checked)} className="checkbox-custom" />
             <span className="text-sm text-gray-500">Remember me for 30 days</span>
           </label>
 
@@ -419,5 +403,15 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// ─── Page export ──────────────────────────────────────────────────────────────
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

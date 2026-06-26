@@ -2,11 +2,9 @@
 
 import { Suspense, useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FormData {
   fullName: string;
@@ -33,8 +31,6 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   return { label: "Strong", color: "#7C3AED", width: "100%" };
 }
 
-// ─── Shared styles ────────────────────────────────────────────────────────────
-
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
   .syntra-input { transition: all 0.15s ease; }
@@ -60,8 +56,6 @@ const SyntraLogo = () => (
   </div>
 );
 
-// ─── Loading skeleton (shown while Suspense resolves) ─────────────────────────
-
 function InvitePageSkeleton() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
@@ -83,8 +77,6 @@ function InvitePageSkeleton() {
   );
 }
 
-// ─── Inner component (uses useSearchParams — must be inside Suspense) ─────────
-
 function InviteAcceptInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -97,9 +89,9 @@ function InviteAcceptInner() {
 
   const [formData, setFormData] = useState<FormData>({ fullName: "", password: "", confirmPassword: "" });
   const [errors, setErrors]     = useState<FormErrors>({});
-  const [showPassword, setShowPassword]   = useState(false);
-  const [showConfirm, setShowConfirm]     = useState(false);
-  const [isSubmitting, setIsSubmitting]   = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm]   = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const strength = getPasswordStrength(formData.password);
 
@@ -132,17 +124,19 @@ function InviteAcceptInner() {
 
     setIsSubmitting(true);
     try {
-      // 1. Validate invite
+      // 1. Validate invite doc BEFORE creating account
       const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
       if (!inviteSnap.exists() || inviteSnap.data().consumed) {
         setErrors({ general: "This invite link has already been used or has expired. Ask your workspace owner to send a new one." });
+        setIsSubmitting(false);
         return;
       }
+
+      const inviteData = inviteSnap.data();
 
       // 2. Create Firebase Auth account
       const credential = await createUserWithEmailAndPassword(auth, emailParam, formData.password);
       await updateProfile(credential.user, { displayName: formData.fullName });
-      await sendEmailVerification(credential.user);
 
       // 3. Add to workspace members
       await setDoc(doc(db, "workspaces", workspaceId, "members", credential.user.uid), {
@@ -150,13 +144,13 @@ function InviteAcceptInner() {
         email: emailParam,
         fullName: formData.fullName,
         photoURL: null,
-        role: inviteSnap.data().role ?? "Member",
+        role: inviteData.role ?? "Member",
         status: "Active",
         joinedAt: serverTimestamp(),
-        invitedAt: inviteSnap.data().invitedAt,
+        invitedAt: inviteData.invitedAt ?? serverTimestamp(),
       });
 
-      // 4. Create user doc — workspace already linked, skip onboarding
+      // 4. Create user doc — onboardingComplete true so login skips onboarding
       await setDoc(doc(db, "users", credential.user.uid), {
         uid: credential.user.uid,
         email: emailParam,
@@ -176,20 +170,31 @@ function InviteAcceptInner() {
         acceptedBy: credential.user.uid,
       }, { merge: true });
 
+      // 6. Send branded verification email via Nodemailer
+      await fetch("/api/email/send-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: credential.user.uid,
+          email: emailParam,
+          fullName: formData.fullName,
+        }),
+      });
+
+      // 7. Redirect to verify-email page
       router.push("/verify-email");
     } catch (err: unknown) {
+      console.error("Invite accept error:", err);
       const code = (err as { code?: string }).code;
       if (code === "auth/email-already-in-use") {
         setErrors({ general: "An account with this email already exists. Try logging in instead." });
       } else {
-        setErrors({ general: "Something went wrong. Please try again or contact support." });
+        setErrors({ general: `Something went wrong: ${(err as Error).message ?? code ?? "unknown error"}` });
       }
     } finally {
       setIsSubmitting(false);
     }
   }
-
-  // ─── Invalid link ──────────────────────────────────────────────────────────
 
   if (!inviteKey || !workspaceId || !emailParam) {
     return (
@@ -212,8 +217,6 @@ function InviteAcceptInner() {
     );
   }
 
-  // ─── Main form ─────────────────────────────────────────────────────────────
-
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
@@ -223,7 +226,6 @@ function InviteAcceptInner() {
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
         <SyntraLogo />
 
-        {/* Invite context banner */}
         <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4 mb-7 text-center">
           <p className="text-xs text-violet-600 font-medium uppercase tracking-wide mb-1">You&apos;ve been invited</p>
           <p className="text-sm font-semibold text-gray-900">{invitedByName} invited you to join</p>
@@ -243,14 +245,12 @@ function InviteAcceptInner() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          {/* Email — read-only */}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
             <input type="email" value={emailParam} disabled
               className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
           </div>
 
-          {/* Full name */}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Full name</label>
             <input type="text" placeholder="John Carter" value={formData.fullName} autoFocus
@@ -259,7 +259,6 @@ function InviteAcceptInner() {
             {errors.fullName && <p className="text-xs text-red-500 mt-1.5">{errors.fullName}</p>}
           </div>
 
-          {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
             <div className="relative">
@@ -285,7 +284,6 @@ function InviteAcceptInner() {
             {errors.password && <p className="text-xs text-red-500 mt-1.5">{errors.password}</p>}
           </div>
 
-          {/* Confirm password */}
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Confirm password</label>
             <div className="relative">
@@ -325,8 +323,6 @@ function InviteAcceptInner() {
     </div>
   );
 }
-
-// ─── Page export — wraps inner component in Suspense ──────────────────────────
 
 export default function InviteAcceptPage() {
   return (

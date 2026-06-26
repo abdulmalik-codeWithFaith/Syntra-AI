@@ -630,7 +630,7 @@ export default function SyntraLanding() {
 
           <div className="hero-cta flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="/signup">
-              <button className="btn-violet px-7 py-3.5 rounded-xl font-semibold text-base">Start for free</button>
+              <button className="btn-violet px-7 py-3.5 rounded-xl font-semibold text-base">Start 3 Meetings for free</button>
             </a>
             <button className="btn-outline px-7 py-3.5 rounded-xl font-medium text-base flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#7C3AED"><path d="M8 5v14l11-7z" /></svg>
