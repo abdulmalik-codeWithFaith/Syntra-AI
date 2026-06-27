@@ -8,6 +8,10 @@ import {
   query,
   orderBy,
   onSnapshot,
+  doc,
+  setDoc,
+  serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import type { MeetingDoc, MeetingStatus, MeetingPlatform } from "@/lib/firestore";
@@ -80,11 +84,6 @@ function formatMeetingTime(ts: any): string {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function formatDuration(minutes?: number): string {
-  if (!minutes) return "—";
-  return `${minutes} min`;
-}
-
 // ─── Topbar ───────────────────────────────────────────────────────────────────
 
 function Topbar({ search, onSearch, userName, userInitials }: {
@@ -118,7 +117,7 @@ function Topbar({ search, onSearch, userName, userInitials }: {
 
 // ─── Meeting row ──────────────────────────────────────────────────────────────
 
-function MeetingRow({ meeting }: { meeting: MeetingDoc & { id: string } }) {
+function MeetingRow({ meeting }: { meeting: MeetingDoc }) {
   const statusStyle = STATUS_STYLES[meeting.status];
   return (
     <a href={`/dashboard/meetings/${meeting.id}`}
@@ -141,7 +140,7 @@ function MeetingRow({ meeting }: { meeting: MeetingDoc & { id: string } }) {
         </div>
         <p className="text-xs text-gray-400 mt-0.5 truncate">
           {meeting.platform} · {formatMeetingDate(meeting.scheduledAt)} at {formatMeetingTime(meeting.scheduledAt)}
-          {meeting.durationMinutes ? ` · ${formatDuration(meeting.durationMinutes)}` : ""}
+          {meeting.durationMinutes ? ` · ${meeting.durationMinutes} min` : ""}
         </p>
       </div>
 
@@ -159,13 +158,13 @@ function MeetingRow({ meeting }: { meeting: MeetingDoc & { id: string } }) {
       )}
 
       <div className="hidden sm:flex -space-x-2 flex-shrink-0">
-        {meeting.attendees.slice(0, 3).map((a, i) => (
+        {(meeting.attendees ?? []).slice(0, 3).map((a, i) => (
           <div key={i} className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white flex-shrink-0"
             style={{ background: a.color ?? colorFromEmail(a.email ?? a.name) }}>
             {a.initials ?? initialsFrom(a.name)}
           </div>
         ))}
-        {meeting.attendees.length > 3 && (
+        {(meeting.attendees ?? []).length > 3 && (
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 text-[10px] font-bold border-2 border-white bg-gray-100 flex-shrink-0">
             +{meeting.attendees.length - 3}
           </div>
@@ -222,17 +221,15 @@ function ScheduleModal({ onClose, workspaceId }: { onClose: () => void; workspac
     if (!form.title || !form.scheduledAt) return;
     setLoading(true);
     try {
-      const { doc, setDoc, collection: col, serverTimestamp } = await import("firebase/firestore");
-      const { db: firestore } = await import("@/lib/firebase/client");
-      const ref = doc(col(firestore, `workspaces/${workspaceId}/meetings`));
+      const ref = doc(collection(db, `workspaces/${workspaceId}/meetings`));
       await setDoc(ref, {
         id: ref.id,
         workspaceId,
         title: form.title,
         platform: form.platform,
         meetingLink: form.meetingLink,
-        status: "Upcoming",
-        scheduledAt: new Date(form.scheduledAt),
+        status: "Upcoming" as MeetingStatus,
+        scheduledAt: Timestamp.fromDate(new Date(form.scheduledAt)),
         attendees: [],
         taskCount: 0,
         decisionCount: 0,
@@ -242,7 +239,7 @@ function ScheduleModal({ onClose, workspaceId }: { onClose: () => void; workspac
       });
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to schedule meeting:", err);
     } finally {
       setLoading(false);
     }
@@ -301,7 +298,7 @@ function ScheduleModal({ onClose, workspaceId }: { onClose: () => void; workspac
 
 export default function MeetingsPage() {
   const { user, userDoc } = useAuth();
-  const [meetings, setMeetings] = useState<(MeetingDoc & { id: string })[]>([]);
+  const [meetings, setMeetings] = useState<MeetingDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
   const [search, setSearch] = useState("");
@@ -318,10 +315,10 @@ export default function MeetingsPage() {
       orderBy("scheduledAt", "desc")
     );
     const unsub = onSnapshot(q, (snap) => {
-      snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as MeetingDoc),
-  }))
+      setMeetings(snap.docs.map((d) => d.data() as MeetingDoc));
+      setLoading(false);
+    }, (err) => {
+      console.error("Meetings listener error:", err);
       setLoading(false);
     });
     return () => unsub();
@@ -368,16 +365,14 @@ export default function MeetingsPage() {
             </h1>
             <p className="text-gray-500 text-sm mt-1">Every meeting Syntra has joined, is joining, or will join.</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button onClick={() => setShowSchedule(true)}
-              className="text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5"
-              style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Schedule
-            </button>
-          </div>
+          <button onClick={() => setShowSchedule(true)}
+            className="text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 self-start sm:self-auto"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Schedule
+          </button>
         </div>
 
         <div className="filter-scroll overflow-x-auto mb-6 -mx-1 px-1">

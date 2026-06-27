@@ -1,5 +1,3 @@
-// types/firestore.ts
-// Single source of truth for every Firestore document shape in Syntra AI
 
 import { Timestamp } from "firebase/firestore";
 
@@ -94,7 +92,7 @@ export interface MeetingAttendee {
 }
 
 export interface MeetingDoc {
-  // id: string;
+  id: string;
   workspaceId: string;
   title: string;
   platform: MeetingPlatform;
@@ -133,7 +131,7 @@ export interface TranscriptLineDoc {
 export type TaskStatus = "Pending" | "In Progress" | "Complete";
 
 export interface TaskDoc {
-  // id: string;
+  id: string;
   workspaceId: string;
   meetingId: string;
   meetingTitle: string;

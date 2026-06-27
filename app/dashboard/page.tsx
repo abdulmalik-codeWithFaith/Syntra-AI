@@ -112,7 +112,7 @@ function StatCardView({ card }: { card: StatCard }) {
         <span className="text-sm font-medium" style={{ color: card.highlighted ? "rgba(255,255,255,0.85)" : "#6B7280" }}>
           {card.label}
         </span>
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: card.highlighted ? "rgba(255,255,255,0.15)" : "#F9FAFB", color: card.highlighted ? "#fff" : "#6B7280" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 17L17 7M17 7H8M17 7v9" />
@@ -131,7 +131,7 @@ function StatCardView({ card }: { card: StatCard }) {
   );
 }
 
-// ─── Upcoming meetings from Google Calendar ───────────────────────────────────
+// ─── Upcoming meetings ────────────────────────────────────────────────────────
 
 function UpcomingMeetingsCard({ uid }: { uid: string }) {
   const [meetings, setMeetings] = useState<CalendarMeeting[]>([]);
@@ -160,15 +160,10 @@ function UpcomingMeetingsCard({ uid }: { uid: string }) {
     <div className="rounded-2xl border border-gray-100 bg-white p-6">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-lg font-bold text-gray-900">Upcoming meetings</h2>
-        {connected && (
-          <a href="/dashboard/integrations" className="text-xs font-medium" style={{ color: "#7C3AED" }}>View all →</a>
-        )}
+        {connected && <a href="/dashboard/integrations" className="text-xs font-medium" style={{ color: "#7C3AED" }}>View all →</a>}
       </div>
-
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}
-        </div>
+        <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}</div>
       ) : !connected ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: "#F5F3FF" }}>
@@ -179,21 +174,16 @@ function UpcomingMeetingsCard({ uid }: { uid: string }) {
           </div>
           <p className="text-sm font-medium text-gray-700 mb-1">No calendar connected</p>
           <p className="text-xs text-gray-400 mb-3">Connect Google Calendar to see upcoming meetings.</p>
-          <a href="/dashboard/integrations"
-            className="text-xs font-semibold px-4 py-2 rounded-xl text-white"
-            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
-            Connect calendar
-          </a>
+          <a href="/dashboard/integrations" className="text-xs font-semibold px-4 py-2 rounded-xl text-white"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>Connect calendar</a>
         </div>
       ) : meetings.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-gray-400">No upcoming meetings in the next 30 days.</p>
-        </div>
+        <div className="text-center py-8"><p className="text-sm text-gray-400">No upcoming meetings in the next 30 days.</p></div>
       ) : (
         <div className="space-y-2">
           {meetings.map((m) => (
             <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-violet-200 transition-all">
-              <div className="flex-shrink-0 w-10 text-center">
+              <div className="flex-shrink-0 w-16 text-center">
                 <p className="text-[10px] font-semibold uppercase text-gray-400">{formatDate(m.start)}</p>
                 <p className="text-xs font-semibold text-gray-700">{formatTime(m.start)}</p>
               </div>
@@ -205,9 +195,7 @@ function UpcomingMeetingsCard({ uid }: { uid: string }) {
               {m.meetLink && (
                 <a href={m.meetLink} target="_blank" rel="noopener noreferrer"
                   className="flex-shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white"
-                  style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
-                  Join
-                </a>
+                  style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>Join</a>
               )}
             </div>
           ))}
@@ -217,10 +205,10 @@ function UpcomingMeetingsCard({ uid }: { uid: string }) {
   );
 }
 
-// ─── Team collaboration ────────────────────────────────────────────────────────
+// ─── Team collaboration ───────────────────────────────────────────────────────
 
 function TeamCollaborationCard({ workspaceId }: { workspaceId: string }) {
-  const [members, setMembers] = useState<(MemberDoc & { id: string })[]>([]);
+  const [members, setMembers] = useState<MemberDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -232,7 +220,7 @@ function TeamCollaborationCard({ workspaceId }: { workspaceId: string }) {
       limit(6)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setMembers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as MemberDoc) })));
+      setMembers(snap.docs.map((d) => d.data() as MemberDoc));
       setLoading(false);
     });
     return () => unsub();
@@ -251,19 +239,14 @@ function TeamCollaborationCard({ workspaceId }: { workspaceId: string }) {
           Add members
         </button>
       </div>
-
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}
-        </div>
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />)}</div>
       ) : members.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-gray-400">No team members yet.</p>
-        </div>
+        <div className="text-center py-8"><p className="text-sm text-gray-400">No team members yet.</p></div>
       ) : (
         <div className="space-y-1 max-h-[360px] overflow-y-auto pr-1">
           {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3.5 py-3 border-b border-gray-50 last:border-0">
+            <div key={m.uid} className="flex items-center gap-3.5 py-3 border-b border-gray-50 last:border-0">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                 style={{ background: colorFromEmail(m.email) }}>
                 {initialsFrom(m.fullName)}
@@ -272,15 +255,12 @@ function TeamCollaborationCard({ workspaceId }: { workspaceId: string }) {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-gray-900 truncate">{m.fullName}</p>
                   {m.role === "Owner" && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FCE7F3", color: "#9D174D" }}>
-                      Owner
-                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FCE7F3", color: "#9D174D" }}>Owner</span>
                   )}
                 </div>
                 <p className="text-xs text-gray-400 truncate mt-0.5">{m.email}</p>
               </div>
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0"
-                style={{ background: "#F3F4F6", color: "#4B5563" }}>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: "#F3F4F6", color: "#4B5563" }}>
                 {m.role}
               </span>
             </div>
@@ -294,7 +274,7 @@ function TeamCollaborationCard({ workspaceId }: { workspaceId: string }) {
 // ─── Recent tasks ─────────────────────────────────────────────────────────────
 
 function RecentTasksCard({ workspaceId }: { workspaceId: string }) {
-  const [tasks, setTasks] = useState<(TaskDoc & { id: string })[]>([]);
+  const [tasks, setTasks] = useState<TaskDoc[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -305,7 +285,7 @@ function RecentTasksCard({ workspaceId }: { workspaceId: string }) {
       limit(5)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setTasks(snap.docs.map((d) => ({ id: d.id, ...(d.data() as TaskDoc) })));
+      setTasks(snap.docs.map((d) => d.data() as TaskDoc));
       setLoading(false);
     });
     return () => unsub();
@@ -317,15 +297,10 @@ function RecentTasksCard({ workspaceId }: { workspaceId: string }) {
         <h2 className="text-lg font-bold text-gray-900">Recent tasks</h2>
         <a href="/dashboard/tasks" className="text-xs font-medium" style={{ color: "#7C3AED" }}>View all →</a>
       </div>
-
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-12 rounded-xl bg-gray-100 animate-pulse" />)}
-        </div>
+        <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 rounded-xl bg-gray-100 animate-pulse" />)}</div>
       ) : tasks.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-gray-400">No tasks yet. They'll appear here after meetings.</p>
-        </div>
+        <div className="text-center py-8"><p className="text-sm text-gray-400">No tasks yet. They'll appear here after meetings.</p></div>
       ) : (
         <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
           {tasks.map((t) => {
@@ -335,15 +310,11 @@ function RecentTasksCard({ workspaceId }: { workspaceId: string }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{t.title}</p>
                   {t.ownerName && (
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">
-                      {t.ownerName} · {t.meetingTitle}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{t.ownerName} · {t.meetingTitle}</p>
                   )}
                 </div>
                 <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0"
-                  style={{ background: style.bg, color: style.color }}>
-                  {t.status}
-                </span>
+                  style={{ background: style.bg, color: style.color }}>{t.status}</span>
               </div>
             );
           })}
@@ -364,7 +335,6 @@ export default function DashboardPage() {
   const userName = user?.displayName ?? user?.email ?? "User";
   const userInitials = initialsFrom(userName);
 
-  // Load task stats
   useEffect(() => {
     if (!workspaceId) return;
 
@@ -382,8 +352,8 @@ export default function DashboardPage() {
           inProgress: inProgressSnap.size,
           pending: pendingSnap.size,
         });
-      } catch {
-        // silently fail
+      } catch (err) {
+        console.error("Stats load error:", err);
       } finally {
         setStatsLoading(false);
       }
@@ -413,7 +383,6 @@ export default function DashboardPage() {
       <main className="flex-1 px-6 sm:px-8 py-6 max-w-[1600px]">
         <Topbar userName={userName} userInitials={userInitials} />
 
-        {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-8 mb-7">
           <div>
             <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "2.25rem", color: "#111827" }}>
@@ -440,20 +409,15 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-          {statCards.map((card) => (
-            <StatCardView key={card.label} card={card} />
-          ))}
+          {statCards.map((card) => <StatCardView key={card.label} card={card} />)}
         </div>
 
-        {/* Upcoming meetings + team */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {user && <UpcomingMeetingsCard uid={user.uid} />}
           <TeamCollaborationCard workspaceId={workspaceId} />
         </div>
 
-        {/* Recent tasks */}
         <div className="pb-8">
           <RecentTasksCard workspaceId={workspaceId} />
         </div>
