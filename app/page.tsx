@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Logo from "@/public/logo.png";
 import Image from "next/image";
+import Footer from "@/components/Footer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,36 @@ const NAV_LINKS: NavLink[] = [
   { label: "How it works", href: "#how-it-works" },
   { label: "Pricing", href: "#pricing" },
   { label: "Team", href: "#team" },
+];
+
+const footerLinks = [
+  {
+    heading: "Product",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "How it works", href: "/#how-it-works" },
+      { label: "Pricing", href: "/#pricing" },
+      { label: "Changelog", href: "/changelog" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [
+      { label: "About", href: "/about" },
+      { label: "Blog", href: "/blog" },
+      { label: "Careers", href: "/careers" },
+      { label: "Contact", href: "/contact" },
+    ],
+  },
+  {
+    heading: "Legal",
+    links: [
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
+      { label: "Security", href: "/security" },
+      { label: "Cookies", href: "/cookies" },
+    ],
+  },
 ];
 
 const WAVEFORM_HEIGHTS: number[] = [
@@ -815,51 +846,7 @@ export default function SyntraLanding() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-gray-100 py-12 px-6 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between gap-10 mb-10">
-            <div className="max-w-xs">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 1l4 4-4 4" />
-                    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                    <path d="M7 23l-4-4 4-4" />
-                    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-                  </svg>
-                </div>
-                <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: "#111827" }}>Syntra AI</span>
-              </div>
-              <p className="text-sm leading-relaxed text-gray-400">Your AI meeting co-worker. Turns conversations into action.</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
-              {[
-                { heading: "Product", links: ["Features", "How it works", "Pricing", "Changelog"] },
-                { heading: "Company", links: ["About", "Team", "Blog", "Careers"] },
-                { heading: "Legal", links: ["Privacy", "Terms", "Security", "Contact"] },
-              ].map((col) => (
-                <div key={col.heading}>
-                  <p className="text-xs font-mono uppercase tracking-widest mb-3 text-gray-400">{col.heading}</p>
-                  <ul className="space-y-2">
-                    {col.links.map((l) => (
-                      <li key={l}><a href="#" className="text-sm text-gray-400 hover:text-gray-700 transition-colors">{l}</a></li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t border-gray-100 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-gray-300">© 2025 Syntra AI. All rights reserved.</p>
-            <div className="flex items-center gap-2 text-xs font-mono text-gray-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              All systems operational
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer/>
     </div>
   );
 }

@@ -37,151 +37,8 @@ interface Value {
 const DEPARTMENTS: Department[] = ["All", "Engineering", "AI & Research", "Design", "Product", "Growth"];
 
 const JOBS: Job[] = [
-  {
-    id: "j1",
-    title: "Senior Full-Stack Engineer",
-    department: "Engineering",
-    location: "Remote",
-    type: "Full-time",
-    posted: "2 days ago",
-    description: "Build and scale the core Syntra AI platform. You'll work across the full stack — Next.js on the frontend, Firebase on the backend — and own features from idea to production.",
-    requirements: [
-      "5+ years of full-stack experience",
-      "Strong proficiency in TypeScript and React",
-      "Experience with Firebase (Auth, Firestore, Functions)",
-      "Familiarity with real-time systems and WebSockets",
-      "Track record of shipping production-grade features",
-    ],
-    nice: [
-      "Experience with Next.js App Router",
-      "Background in AI/ML product development",
-      "Experience with audio processing or transcription systems",
-    ],
-  },
-  {
-    id: "j2",
-    title: "AI / ML Engineer",
-    department: "AI & Research",
-    location: "Remote",
-    type: "Full-time",
-    posted: "3 days ago",
-    description: "Own the intelligence layer of Syntra. You'll work with Gemini, fine-tune extraction pipelines, improve transcription accuracy, and build the voice interaction system that makes Syntra speak like a real co-worker.",
-    requirements: [
-      "3+ years working with LLMs or NLP systems",
-      "Experience with Google Gemini, GPT-4, or similar models",
-      "Strong Python skills and understanding of ML fundamentals",
-      "Familiarity with speech-to-text and text-to-speech pipelines",
-      "Ability to evaluate and iterate on model outputs",
-    ],
-    nice: [
-      "Experience with speaker diarization",
-      "Background in meeting intelligence or productivity AI",
-      "Published research in NLP or speech recognition",
-    ],
-  },
-  {
-    id: "j3",
-    title: "Product Designer",
-    department: "Design",
-    location: "Remote",
-    type: "Full-time",
-    posted: "5 days ago",
-    description: "Design the experience that makes AI feel like a co-worker, not a tool. You'll own everything from user flows and component design to the visual language of the Syntra dashboard and meeting interface.",
-    requirements: [
-      "4+ years of product design experience",
-      "Strong portfolio demonstrating SaaS or B2B product work",
-      "Proficiency in Figma with strong systems thinking",
-      "Experience designing for complex data-rich interfaces",
-      "Comfort working directly with engineers in code",
-    ],
-    nice: [
-      "Experience designing AI or voice-first products",
-      "Background in productivity or collaboration tools",
-      "Ability to write basic React/Tailwind for prototyping",
-    ],
-  },
-  {
-    id: "j4",
-    title: "Backend Engineer — Infrastructure",
-    department: "Engineering",
-    location: "Remote",
-    type: "Full-time",
-    posted: "1 week ago",
-    description: "Build and maintain the infrastructure that powers Syntra's autonomous agent — the system that joins meetings, listens, and processes content without any manual intervention.",
-    requirements: [
-      "4+ years of backend engineering experience",
-      "Deep understanding of event-driven architecture",
-      "Experience with job queues, cron systems, and background workers",
-      "Familiarity with cloud functions and serverless patterns (Firebase Functions, Vercel Edge)",
-      "Strong debugging and observability skills",
-    ],
-    nice: [
-      "Experience building bots or integrations for Zoom/Google Meet/Teams",
-      "Background in audio or media processing pipelines",
-      "Familiarity with WebRTC",
-    ],
-  },
-  {
-    id: "j5",
-    title: "Product Manager",
-    department: "Product",
-    location: "Hybrid",
-    type: "Full-time",
-    posted: "1 week ago",
-    description: "Own a core area of the Syntra product — from the meeting detail experience to the task dashboard and reporting. You'll work directly with engineers and designers to ship things people love.",
-    requirements: [
-      "3+ years of product management at a B2B SaaS company",
-      "Strong written communication and prioritization skills",
-      "Experience working in cross-functional teams with engineering and design",
-      "Data-driven approach to product decisions",
-      "Comfort with ambiguity and fast-moving environments",
-    ],
-    nice: [
-      "Background in productivity, meeting, or HR tech",
-      "Experience with AI product development",
-      "Technical background or ability to read code",
-    ],
-  },
-  {
-    id: "j6",
-    title: "Growth Engineer",
-    department: "Growth",
-    location: "Remote",
-    type: "Full-time",
-    posted: "2 weeks ago",
-    description: "Own the growth systems that bring new users into Syntra — from onboarding flows and activation experiments to referral programs and lifecycle email. You'll work at the intersection of engineering and marketing.",
-    requirements: [
-      "3+ years of growth or full-stack engineering experience",
-      "Experience running A/B experiments and interpreting results",
-      "Proficiency in React and TypeScript",
-      "Familiarity with analytics platforms and event tracking",
-      "Strong understanding of SaaS funnel metrics",
-    ],
-    nice: [
-      "Experience with Nodemailer or email automation",
-      "Background in PLG (product-led growth) companies",
-      "Familiarity with Firebase and Firestore",
-    ],
-  },
-  {
-    id: "j7",
-    title: "AI Research Intern",
-    department: "AI & Research",
-    location: "Remote",
-    type: "Part-time",
-    posted: "3 weeks ago",
-    description: "Join the AI team for a 3–6 month engagement exploring better methods for task extraction, speaker attribution, and meeting context modeling. Perfect for graduate students in NLP or ML.",
-    requirements: [
-      "Currently enrolled in an MSc or PhD program in CS, NLP, or related field",
-      "Strong Python and ML fundamentals",
-      "Familiarity with transformer architectures and LLMs",
-      "Ability to read and implement research papers",
-    ],
-    nice: [
-      "Prior research experience in meeting or dialogue systems",
-      "Familiarity with LangChain or similar frameworks",
-    ],
-  },
+ 
+  
 ];
 
 const PERKS: Perk[] = [
@@ -502,7 +359,7 @@ export default function CareersPage() {
       <section className="border-y border-gray-100 py-10 px-6">
         <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {[
-            { value: "12", label: "Team members" },
+            { value: "2", label: "Team members" },
             { value: "100%", label: "Remote-friendly" },
             { value: `${JOBS.length}`, label: "Open roles" },
             { value: "$0", label: "Meetings without notes" },
