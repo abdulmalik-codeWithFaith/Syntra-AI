@@ -309,18 +309,17 @@ export default function MeetingsPage() {
   const userInitials = initialsFrom(userName);
 
   useEffect(() => {
+    console.log("workspaceId:", workspaceId);
+  console.log("userDoc:", userDoc);
     if (!workspaceId) return;
-    const q = query(
-      collection(db, `workspaces/${workspaceId}/meetings`),
-      orderBy("scheduledAt", "desc")
-    );
+    const q = collection(db, `workspaces/${workspaceId}/meetings`);
     const unsub = onSnapshot(q, (snap) => {
-      setMeetings(snap.docs.map((d) => d.data() as MeetingDoc));
-      setLoading(false);
-    }, (err) => {
-      console.error("Meetings listener error:", err);
-      setLoading(false);
-    });
+    console.log("meetings snap size:", snap.size);
+    snap.docs.forEach(d => console.log("meeting doc:", d.id, d.data()));
+    setMeetings(snap.docs.map((d) => d.data() as MeetingDoc));
+    setLoading(false);
+    
+  });
     return () => unsub();
   }, [workspaceId]);
 
@@ -407,6 +406,7 @@ export default function MeetingsPage() {
             <EmptyState filter={activeFilter} />
           )}
         </div>
+        
       </main>
 
       {showSchedule && workspaceId && (

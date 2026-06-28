@@ -1,72 +1,67 @@
 "use client";
 
 import Sidebar from "@/components/sidebar";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import type { MeetingDoc, MeetingPlatform } from "@/lib/firestore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PlatformType = "Google Meet" | "Zoom" | "Microsoft Teams";
 type FilterTab = "All" | "This week" | "This month" | "Older";
-type ViewMode = "grid" | "list";
-
-interface Report {
-  id: string;
-  meetingId: string;
-  meetingTitle: string;
-  platform: PlatformType;
-  date: string;
-  dateISO: string;
-  taskCount: number;
-  decisionCount: number;
-  attendeeCount: number;
-  fileSizeKB: number;
-}
+type ViewMode  = "grid" | "list";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-const PLATFORM_ICON: Record<PlatformType, React.ReactNode> = {
-  "Google Meet": (
+function PlatformIcon({ platform }: { platform: MeetingPlatform }) {
+  if (platform === "Google Meet") return (
     <svg width="14" height="14" viewBox="0 0 24 24">
       <path fill="#00832D" d="M12 11v6h6v-6z" /><path fill="#0066DA" d="M12 5v6h6V8.5L21 6V5z" />
       <path fill="#E94235" d="M12 5H7.5L5 7.5V11h7z" /><path fill="#2684FC" d="M5 11v6h7v-6z" />
       <path fill="#00AC47" d="M18 11v3.5L21 19v-8z" /><path fill="#FFBA00" d="M5 7.5L2 5v14l3-2.5z" />
     </svg>
-  ),
-  Zoom: (
+  );
+  if (platform === "Zoom") return (
     <svg width="14" height="14" viewBox="0 0 24 24">
       <rect width="24" height="24" rx="6" fill="#2D8CFF" />
       <path fill="white" d="M5 9.5h9a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-1.5 1.5H5z" />
       <path fill="white" d="M16 11.2l3-2v5.6l-3-2z" />
     </svg>
-  ),
-  "Microsoft Teams": (
+  );
+  return (
     <svg width="14" height="14" viewBox="0 0 24 24">
       <rect x="2" y="5" width="13" height="14" rx="1.5" fill="#5059C9" /><circle cx="18.5" cy="7" r="2.5" fill="#5059C9" />
       <rect x="15" y="9" width="7" height="9" rx="1.5" fill="#7B83EB" /><rect x="5" y="9" width="7" height="7" rx="0.5" fill="white" />
     </svg>
-  ),
-};
+  );
+}
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const REPORTS: Report[] = [
-  { id: "r1", meetingId: "4",  meetingTitle: "Product Sync — Mobile App",       platform: "Zoom",             date: "Jun 18, 2026", dateISO: "2026-06-18", taskCount: 5, decisionCount: 2, attendeeCount: 3, fileSizeKB: 412 },
-  { id: "r2", meetingId: "5",  meetingTitle: "Marketing Strategy Review",        platform: "Microsoft Teams",  date: "Jun 18, 2026", dateISO: "2026-06-18", taskCount: 3, decisionCount: 1, attendeeCount: 2, fileSizeKB: 298 },
-  { id: "r3", meetingId: "6",  meetingTitle: "Engineering Retro",                platform: "Google Meet",      date: "Jun 17, 2026", dateISO: "2026-06-17", taskCount: 6, decisionCount: 3, attendeeCount: 4, fileSizeKB: 521 },
-  { id: "r4", meetingId: "7",  meetingTitle: "Investor Update",                  platform: "Zoom",             date: "Jun 15, 2026", dateISO: "2026-06-15", taskCount: 2, decisionCount: 4, attendeeCount: 1, fileSizeKB: 356 },
-  { id: "r5", meetingId: "8",  meetingTitle: "Weekly Standup",                   platform: "Google Meet",      date: "Jun 13, 2026", dateISO: "2026-06-13", taskCount: 4, decisionCount: 0, attendeeCount: 5, fileSizeKB: 187 },
-  { id: "r6", meetingId: "9",  meetingTitle: "Client Onboarding — Acme Corp",   platform: "Zoom",             date: "Jun 12, 2026", dateISO: "2026-06-12", taskCount: 7, decisionCount: 2, attendeeCount: 4, fileSizeKB: 478 },
-  { id: "r7", meetingId: "10", meetingTitle: "Design Review — Checkout Flow",   platform: "Google Meet",      date: "Jun 10, 2026", dateISO: "2026-06-10", taskCount: 3, decisionCount: 5, attendeeCount: 3, fileSizeKB: 392 },
-  { id: "r8", meetingId: "11", meetingTitle: "Hiring Sync — Engineering",       platform: "Microsoft Teams",  date: "May 28, 2026", dateISO: "2026-05-28", taskCount: 2, decisionCount: 1, attendeeCount: 3, fileSizeKB: 245 },
-  { id: "r9", meetingId: "12", meetingTitle: "Sprint Planning — Q3",            platform: "Zoom",             date: "May 20, 2026", dateISO: "2026-05-20", taskCount: 9, decisionCount: 3, attendeeCount: 6, fileSizeKB: 612 },
-];
+function initialsFrom(name: string): string {
+  const parts = name.trim().split(" ");
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-const FILTER_TABS: FilterTab[] = ["All", "This week", "This month", "Older"];
-const TODAY = new Date("2026-06-20");
+function formatDate(ts: any): string {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
-function bucketReport(dateISO: string): "This week" | "This month" | "Older" {
-  const date = new Date(dateISO);
-  const diffDays = Math.floor((TODAY.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+function getDateISO(ts: any): string {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toISOString().split("T")[0];
+}
+
+function bucketMeeting(ts: any): "This week" | "This month" | "Older" {
+  if (!ts) return "Older";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays <= 7)  return "This week";
   if (diffDays <= 30) return "This month";
   return "Older";
@@ -74,7 +69,10 @@ function bucketReport(dateISO: string): "This week" | "This month" | "Older" {
 
 // ─── Topbar ───────────────────────────────────────────────────────────────────
 
-function Topbar({ search, onSearch }: { search: string; onSearch: (v: string) => void }) {
+function Topbar({ search, onSearch, userName, userInitials }: {
+  search: string; onSearch: (v: string) => void;
+  userName: string; userInitials: string;
+}) {
   return (
     <div className="md:flex hidden items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 rounded-2xl border border-gray-100 w-full" style={{ background: "#F9FAFB" }}>
       <div className="flex-1 relative min-w-0">
@@ -83,21 +81,17 @@ function Topbar({ search, onSearch }: { search: string; onSearch: (v: string) =>
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </span>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
+        <input type="text" value={search} onChange={(e) => onSearch(e.target.value)}
           placeholder="Search reports..."
-          className="w-full bg-white rounded-xl border border-gray-200 pl-9 pr-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
-        />
+          className="w-full bg-white rounded-xl border border-gray-200 pl-9 pr-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all" />
       </div>
       <div className="flex items-center gap-2 pl-2 border-l border-gray-200 flex-shrink-0">
-        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-          MI
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white text-xs font-bold"
+          style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
+          {userInitials}
         </div>
         <div className="hidden lg:block">
-          <p className="text-sm font-semibold text-gray-900 leading-tight">Musa Imran</p>
-          <p className="text-xs text-gray-400 leading-tight">Admin</p>
+          <p className="text-sm font-semibold text-gray-900 leading-tight">{userName}</p>
         </div>
       </div>
     </div>
@@ -106,17 +100,15 @@ function Topbar({ search, onSearch }: { search: string; onSearch: (v: string) =>
 
 // ─── Report Card (grid) ───────────────────────────────────────────────────────
 
-function ReportCard({ report, selected, onToggleSelect }: { report: Report; selected: boolean; onToggleSelect: () => void }) {
+function ReportCard({ meeting, selected, onToggleSelect }: {
+  meeting: MeetingDoc; selected: boolean; onToggleSelect: () => void;
+}) {
   return (
-    <div
-      className="rounded-2xl border bg-white p-5 transition-all duration-150 hover:shadow-md relative"
-      style={{ borderColor: selected ? "#7C3AED" : "#F3F4F6" }}
-    >
-      <button
-        onClick={onToggleSelect}
+    <div className="rounded-2xl border bg-white p-5 transition-all duration-150 hover:shadow-md relative"
+      style={{ borderColor: selected ? "#7C3AED" : "#F3F4F6" }}>
+      <button onClick={onToggleSelect}
         className="absolute top-4 right-4 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors z-10"
-        style={{ borderColor: selected ? "#7C3AED" : "#D1D5DB", background: selected ? "#7C3AED" : "#fff" }}
-      >
+        style={{ borderColor: selected ? "#7C3AED" : "#D1D5DB", background: selected ? "#7C3AED" : "#fff" }}>
         {selected && (
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
@@ -124,37 +116,48 @@ function ReportCard({ report, selected, onToggleSelect }: { report: Report; sele
         )}
       </button>
 
-      {/* PDF thumb */}
-      <div className="w-full h-28 rounded-xl flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg, #F5F3FF, #EFF6FF)" }}>
+      <div className="w-full h-28 rounded-xl flex items-center justify-center mb-4"
+        style={{ background: "linear-gradient(135deg, #F5F3FF, #EFF6FF)" }}>
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6M9 17h6M9 9h1" />
         </svg>
       </div>
 
       <div className="flex items-center gap-1.5 mb-1.5">
-        {PLATFORM_ICON[report.platform]}
-        <span className="text-xs text-gray-400 truncate">{report.date}</span>
+        <PlatformIcon platform={meeting.platform} />
+        <span className="text-xs text-gray-400 truncate">{formatDate(meeting.scheduledAt)}</span>
       </div>
-      <p className="text-sm font-semibold text-gray-900 leading-snug mb-3 pr-6 truncate">{report.meetingTitle}</p>
+      <p className="text-sm font-semibold text-gray-900 leading-snug mb-3 pr-6 truncate">{meeting.title}</p>
 
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-4 flex-wrap">
-        <span>{report.taskCount} tasks</span>
+        <span>{meeting.taskCount} tasks</span>
         <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
-        <span>{report.decisionCount} decisions</span>
-        <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
-        <span>{(report.fileSizeKB / 1024).toFixed(1)} MB</span>
+        <span>{meeting.decisionCount} decisions</span>
+        {meeting.pdfSizeKB && (
+          <>
+            <span className="w-1 h-1 rounded-full bg-gray-300 flex-shrink-0" />
+            <span>{(meeting.pdfSizeKB / 1024).toFixed(1)} MB</span>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
-        <a
-          href={`/dashboard/meetings/${report.meetingId}`}
-          className="flex-1 text-center text-xs font-medium rounded-lg border border-gray-200 py-2 text-gray-600 hover:border-violet-300 hover:text-violet-600 transition-colors"
-        >
+        <a href={`/dashboard/meetings/${meeting.id}`}
+          className="flex-1 text-center text-xs font-medium rounded-lg border border-gray-200 py-2 text-gray-600 hover:border-violet-300 hover:text-violet-600 transition-colors">
           View
         </a>
-        <button className="flex-1 text-center text-xs font-semibold rounded-lg py-2 text-white" style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
-          Download
-        </button>
+        {meeting.pdfUrl ? (
+          <a href={meeting.pdfUrl} target="_blank" rel="noopener noreferrer"
+            className="flex-1 text-center text-xs font-semibold rounded-lg py-2 text-white"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
+            Download
+          </a>
+        ) : (
+          <button disabled
+            className="flex-1 text-center text-xs font-semibold rounded-lg py-2 text-gray-400 bg-gray-100 cursor-not-allowed">
+            No PDF
+          </button>
+        )}
       </div>
     </div>
   );
@@ -162,17 +165,15 @@ function ReportCard({ report, selected, onToggleSelect }: { report: Report; sele
 
 // ─── Report Row (list) ────────────────────────────────────────────────────────
 
-function ReportRow({ report, selected, onToggleSelect }: { report: Report; selected: boolean; onToggleSelect: () => void }) {
+function ReportRow({ meeting, selected, onToggleSelect }: {
+  meeting: MeetingDoc; selected: boolean; onToggleSelect: () => void;
+}) {
   return (
-    <div
-      className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border bg-white hover:shadow-sm transition-all duration-150 w-full min-w-0"
-      style={{ borderColor: selected ? "#7C3AED" : "#F3F4F6" }}
-    >
-      <button
-        onClick={onToggleSelect}
+    <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border bg-white hover:shadow-sm transition-all duration-150 w-full min-w-0"
+      style={{ borderColor: selected ? "#7C3AED" : "#F3F4F6" }}>
+      <button onClick={onToggleSelect}
         className="w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors"
-        style={{ borderColor: selected ? "#7C3AED" : "#D1D5DB", background: selected ? "#7C3AED" : "transparent" }}
-      >
+        style={{ borderColor: selected ? "#7C3AED" : "#D1D5DB", background: selected ? "#7C3AED" : "transparent" }}>
         {selected && (
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
@@ -186,46 +187,48 @@ function ReportRow({ report, selected, onToggleSelect }: { report: Report; selec
         </svg>
       </div>
 
-      {/* Title — min-w-0 + truncate */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{report.meetingTitle}</p>
+        <p className="text-sm font-semibold text-gray-900 truncate">{meeting.title}</p>
         <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1 truncate">
-          <span className="flex-shrink-0">{PLATFORM_ICON[report.platform]}</span>
-          <span className="truncate">{report.platform} · {report.date}</span>
+          <span className="flex-shrink-0"><PlatformIcon platform={meeting.platform} /></span>
+          <span className="truncate">{meeting.platform} · {formatDate(meeting.scheduledAt)}</span>
         </p>
       </div>
 
-      {/* Stats — hidden on small screens */}
       <div className="hidden md:flex items-center gap-4 lg:gap-6 flex-shrink-0">
         <div className="text-center w-12">
-          <p className="text-sm font-bold text-gray-900">{report.taskCount}</p>
+          <p className="text-sm font-bold text-gray-900">{meeting.taskCount}</p>
           <p className="text-[10px] text-gray-400 uppercase tracking-wide">Tasks</p>
         </div>
         <div className="text-center w-14">
-          <p className="text-sm font-bold text-gray-900">{report.decisionCount}</p>
+          <p className="text-sm font-bold text-gray-900">{meeting.decisionCount}</p>
           <p className="text-[10px] text-gray-400 uppercase tracking-wide">Decisions</p>
         </div>
-        <div className="text-center w-14">
-          <p className="text-sm font-bold text-gray-900">{(report.fileSizeKB / 1024).toFixed(1)} MB</p>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide">Size</p>
-        </div>
+        {meeting.pdfSizeKB && (
+          <div className="text-center w-14">
+            <p className="text-sm font-bold text-gray-900">{(meeting.pdfSizeKB / 1024).toFixed(1)} MB</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wide">Size</p>
+          </div>
+        )}
       </div>
 
-      <a
-        href={`/dashboard/meetings/${report.meetingId}`}
-        className="text-xs font-medium rounded-lg border border-gray-200 px-3 py-2 text-gray-600 hover:border-violet-300 hover:text-violet-600 transition-colors flex-shrink-0 hidden sm:block"
-      >
+      <a href={`/dashboard/meetings/${meeting.id}`}
+        className="text-xs font-medium rounded-lg border border-gray-200 px-3 py-2 text-gray-600 hover:border-violet-300 hover:text-violet-600 transition-colors flex-shrink-0 hidden sm:block">
         View
       </a>
-      <button
-        className="text-xs font-semibold rounded-lg px-3 py-2 text-white flex-shrink-0 flex items-center gap-1"
-        style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        <span className="hidden sm:inline">PDF</span>
-      </button>
+
+      {meeting.pdfUrl ? (
+        <a href={meeting.pdfUrl} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-semibold rounded-lg px-3 py-2 text-white flex-shrink-0 flex items-center gap-1"
+          style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span className="hidden sm:inline">PDF</span>
+        </a>
+      ) : (
+        <span className="text-xs text-gray-300 flex-shrink-0 hidden sm:block">No PDF</span>
+      )}
     </div>
   );
 }
@@ -240,8 +243,8 @@ function EmptyState() {
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
         </svg>
       </div>
-      <p className="text-sm font-semibold text-gray-900 mb-1">No reports found</p>
-      <p className="text-xs text-gray-400 text-center px-4">PDF reports are generated automatically after each meeting.</p>
+      <p className="text-sm font-semibold text-gray-900 mb-1">No reports yet</p>
+      <p className="text-xs text-gray-400 text-center px-4">PDF reports are generated automatically after each completed meeting.</p>
     </div>
   );
 }
@@ -249,10 +252,35 @@ function EmptyState() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const { user, userDoc } = useAuth();
+  const [meetings, setMeetings]     = useState<MeetingDoc[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
-  const [search,       setSearch]       = useState<string>("");
-  const [viewMode,     setViewMode]     = useState<ViewMode>("grid");
-  const [selected,     setSelected]     = useState<Set<string>>(new Set());
+  const [search, setSearch]         = useState("");
+  const [viewMode, setViewMode]     = useState<ViewMode>("grid");
+  const [selected, setSelected]     = useState<Set<string>>(new Set());
+
+  const workspaceId = userDoc?.currentWorkspaceId ?? "";
+  const userName = user?.displayName ?? user?.email ?? "User";
+  const userInitials = initialsFrom(userName);
+
+  // Only load completed meetings that have a PDF
+  useEffect(() => {
+    if (!workspaceId) return;
+    const q = query(
+      collection(db, `workspaces/${workspaceId}/meetings`),
+      where("status", "==", "Completed"),
+      orderBy("scheduledAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setMeetings(snap.docs.map((d) => d.data() as MeetingDoc));
+      setLoading(false);
+    }, (err) => {
+      console.error("Reports listener error:", err);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [workspaceId]);
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -262,33 +290,32 @@ export default function ReportsPage() {
     });
   }
 
-  const filteredReports = useMemo(() => {
-    let result = REPORTS;
-    if (activeFilter !== "All") result = result.filter((r) => bucketReport(r.dateISO) === activeFilter);
+  const filtered = useMemo(() => {
+    let result = meetings;
+    if (activeFilter !== "All") result = result.filter((m) => bucketMeeting(m.scheduledAt) === activeFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter((r) => r.meetingTitle.toLowerCase().includes(q) || r.platform.toLowerCase().includes(q));
+      result = result.filter((m) => m.title.toLowerCase().includes(q) || m.platform.toLowerCase().includes(q));
     }
     return result;
-  }, [activeFilter, search]);
+  }, [meetings, activeFilter, search]);
+
+  const FILTER_TABS: FilterTab[] = ["All", "This week", "This month", "Older"];
 
   const counts: Record<FilterTab, number> = {
-    All:          REPORTS.length,
-    "This week":  REPORTS.filter((r) => bucketReport(r.dateISO) === "This week").length,
-    "This month": REPORTS.filter((r) => bucketReport(r.dateISO) === "This month").length,
-    Older:        REPORTS.filter((r) => bucketReport(r.dateISO) === "Older").length,
+    All:          meetings.length,
+    "This week":  meetings.filter((m) => bucketMeeting(m.scheduledAt) === "This week").length,
+    "This month": meetings.filter((m) => bucketMeeting(m.scheduledAt) === "This month").length,
+    Older:        meetings.filter((m) => bucketMeeting(m.scheduledAt) === "Older").length,
   };
 
-  const totalSizeMB = (REPORTS.reduce((sum, r) => sum + r.fileSizeKB, 0) / 1024).toFixed(1);
+  const totalSizeMB = (meetings.reduce((sum, m) => sum + (m.pdfSizeKB ?? 0), 0) / 1024).toFixed(1);
+  const withPDF = meetings.filter((m) => m.pdfUrl).length;
 
   return (
     <div className="min-h-screen flex overflow-hidden" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
-        .btn-outline-violet { border: 1.5px solid rgba(124,58,237,0.3); color: #7C3AED; transition: all 0.15s ease; }
-        .btn-outline-violet:hover { background: rgba(124,58,237,0.06); border-color: #7C3AED; }
-        .btn-primary-violet { background: linear-gradient(135deg,#7C3AED,#6D28D9); transition: all 0.2s ease; }
-        .btn-primary-violet:hover { background: linear-gradient(135deg,#8B5CF6,#7C3AED); box-shadow: 0 8px 20px rgba(124,58,237,0.3); }
         .filter-scroll { scrollbar-width: none; }
         .filter-scroll::-webkit-scrollbar { display: none; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -298,53 +325,51 @@ export default function ReportsPage() {
 
       <Sidebar activeId="reports" />
 
-      {/* min-w-0 prevents flex child overflowing sidebar */}
       <main className="flex-1 min-w-0 flex flex-col px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto">
+        <Topbar search={search} onSearch={setSearch} userName={userName} userInitials={userInitials} />
 
-        <Topbar search={search} onSearch={setSearch} />
-
-        {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-8 mb-6">
           <div>
             <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem, 4vw, 2.25rem)", color: "#111827" }}>
               Reports
             </h1>
-            <p className="text-gray-500 text-sm mt-1">{REPORTS.length} PDF reports generated · {totalSizeMB} MB total</p>
+            <p className="text-gray-500 text-sm mt-1">
+              {withPDF} PDF {withPDF === 1 ? "report" : "reports"} generated
+              {Number(totalSizeMB) > 0 ? ` · ${totalSizeMB} MB total` : ""}
+            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-            {/* View toggle */}
             <div className="flex items-center p-1 rounded-xl border border-gray-200 bg-white">
-              <button
-                onClick={() => setViewMode("grid")}
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: viewMode === "grid" ? "#F5F3FF" : "transparent", color: viewMode === "grid" ? "#7C3AED" : "#9CA3AF" }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: viewMode === "list" ? "#F5F3FF" : "transparent", color: viewMode === "list" ? "#7C3AED" : "#9CA3AF" }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
+              {(["grid", "list"] as ViewMode[]).map((mode) => (
+                <button key={mode} onClick={() => setViewMode(mode)}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                  style={{ background: viewMode === mode ? "#F5F3FF" : "transparent", color: viewMode === mode ? "#7C3AED" : "#9CA3AF" }}>
+                  {mode === "grid" ? (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+                    </svg>
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                  )}
+                </button>
+              ))}
             </div>
 
             {selected.size > 0 ? (
-              <button className="btn-primary-violet text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+              <button className="text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap"
+                style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 Download {selected.size}
               </button>
             ) : (
-              <button className="btn-outline-violet text-sm font-semibold rounded-xl px-4 py-2.5 bg-white flex items-center gap-2 whitespace-nowrap">
+              <button className="text-sm font-semibold rounded-xl px-4 py-2.5 bg-white flex items-center gap-2 whitespace-nowrap"
+                style={{ border: "1.5px solid rgba(124,58,237,0.3)", color: "#7C3AED" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
@@ -354,30 +379,21 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Filter tabs — silent horizontal scroll on mobile */}
         <div className="filter-scroll overflow-x-auto mb-6 -mx-1 px-1">
           <div className="flex items-center gap-1.5 w-max">
             {FILTER_TABS.map((tab) => {
               const isActive = activeFilter === tab;
               return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveFilter(tab)}
+                <button key={tab} onClick={() => setActiveFilter(tab)}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 flex-shrink-0"
                   style={{
                     background: isActive ? "linear-gradient(135deg,#7C3AED,#6D28D9)" : "#fff",
                     color:      isActive ? "#fff" : "#6B7280",
                     border:     isActive ? "1px solid transparent" : "1px solid #E5E7EB",
-                  }}
-                >
+                  }}>
                   {tab}
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{
-                      background: isActive ? "rgba(255,255,255,0.2)" : "#F3F4F6",
-                      color:      isActive ? "#fff" : "#9CA3AF",
-                    }}
-                  >
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: isActive ? "rgba(255,255,255,0.2)" : "#F3F4F6", color: isActive ? "#fff" : "#9CA3AF" }}>
                     {counts[tab]}
                   </span>
                 </button>
@@ -386,20 +402,23 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Reports grid / list */}
         <div className="pb-8">
-          {filteredReports.length === 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-64 rounded-2xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : filtered.length === 0 ? (
             <EmptyState />
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredReports.map((r) => (
-                <ReportCard key={r.id} report={r} selected={selected.has(r.id)} onToggleSelect={() => toggleSelect(r.id)} />
+              {filtered.map((m) => (
+                <ReportCard key={m.id} meeting={m} selected={selected.has(m.id)} onToggleSelect={() => toggleSelect(m.id)} />
               ))}
             </div>
           ) : (
             <div className="space-y-2.5">
-              {filteredReports.map((r) => (
-                <ReportRow key={r.id} report={r} selected={selected.has(r.id)} onToggleSelect={() => toggleSelect(r.id)} />
+              {filtered.map((m) => (
+                <ReportRow key={m.id} meeting={m} selected={selected.has(m.id)} onToggleSelect={() => toggleSelect(m.id)} />
               ))}
             </div>
           )}

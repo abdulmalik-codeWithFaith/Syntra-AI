@@ -2,148 +2,106 @@
 
 import Sidebar from "@/components/sidebar";
 import { useState, useRef, useEffect, FormEvent, KeyboardEvent } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { collection, query, orderBy, getDocs, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MessageRole = "user" | "agent";
-
-interface SourceRef {
-  meetingTitle: string;
-  meetingId: string;
-  date: string;
-}
 
 interface ChatMessage {
   id: string;
   role: MessageRole;
   text: string;
   timestamp: string;
-  sources?: SourceRef[];
   isTyping?: boolean;
 }
 
 interface ChatThread {
   id: string;
   title: string;
-  lastMessage: string;
-  timestamp: string;
-  active: boolean;
+  messages: ChatMessage[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const THREADS: ChatThread[] = [
-  { id: "c1", title: "What did we decide on pricing?",   lastMessage: "Based on the Q3 Planning meeting...",     timestamp: "2m ago",    active: true  },
-  { id: "c2", title: "Tasks assigned to Sarah",          lastMessage: "Sarah has 3 open tasks across...",        timestamp: "1h ago",    active: false },
-  { id: "c3", title: "Engineering retro takeaways",      lastMessage: "The team agreed to prioritize...",        timestamp: "Yesterday", active: false },
-  { id: "c4", title: "Overdue tasks this week",          lastMessage: "You have 1 overdue task: Send beta...",   timestamp: "Yesterday", active: false },
-  { id: "c5", title: "Summary of investor update",       lastMessage: "The investor update covered four...",     timestamp: "3 days ago",active: false },
-];
-
 const SUGGESTED_PROMPTS: string[] = [
   "What tasks are overdue this week?",
-  "Summarize yesterday's standup",
-  "What decisions did we make about the mobile app?",
+  "Summarize my recent meetings",
   "Which tasks don't have an owner?",
+  "What decisions were made this month?",
 ];
 
-const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    id: "m1", role: "user",
-    text: "What did we decide on pricing during Q3 Planning?",
-    timestamp: "10:42 AM",
-  },
-  {
-    id: "m2", role: "agent",
-    text: "During Q3 Planning, the team decided to launch the beta by August 15th, with Sarah owning the release. Marketing assets were assigned to Mike, due that Friday. No final pricing tiers were locked in — that was left open pending the performance audit John is running on the dashboard API.",
-    timestamp: "10:42 AM",
-    sources: [
-      { meetingTitle: "Q3 Planning",               meetingId: "1", date: "Jun 20, 2026" },
-      { meetingTitle: "Product Sync — Mobile App", meetingId: "4", date: "Jun 18, 2026" },
-    ],
-  },
-  {
-    id: "m3", role: "user",
-    text: "Who's responsible for that audit and when is it due?",
-    timestamp: "10:43 AM",
-  },
-  {
-    id: "m4", role: "agent",
-    text: "John Carter is running the performance audit on the dashboard API endpoint. It's due June 25th. This was flagged as a decision during the Product Sync meeting after concerns about a 3-second load time.",
-    timestamp: "10:43 AM",
-    sources: [{ meetingTitle: "Product Sync — Mobile App", meetingId: "4", date: "Jun 18, 2026" }],
-  },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function initialsFrom(name: string): string {
+  const parts = name.trim().split(" ");
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatTs(ts: any): string {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function now(): string {
+  return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
 
 // ─── Thread list ──────────────────────────────────────────────────────────────
 
-function ThreadList({
-  threads,
-  onNewChat,
-  open,
-  onClose,
-}: {
+function ThreadList({ threads, activeId, onSelect, onNewChat, open, onClose }: {
   threads: ChatThread[];
+  activeId: string;
+  onSelect: (id: string) => void;
   onNewChat: () => void;
   open: boolean;
   onClose: () => void;
 }) {
   return (
     <>
-      {/* Mobile backdrop */}
-      {open && (
-        <div
-          className="fixed inset-0 z-20 bg-black/20 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Panel */}
-      <div
-        className={`
-          fixed lg:static top-0 left-0 z-30 h-screen
-          w-72 flex flex-col border-r border-gray-100 bg-white flex-shrink-0
-          transition-transform duration-200
-          ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-        `}
-      >
+      {open && <div className="fixed inset-0 z-20 bg-black/20 lg:hidden" onClick={onClose} />}
+      <div className={`fixed lg:static top-0 left-0 z-30 h-screen w-72 flex flex-col border-r border-gray-100 bg-white flex-shrink-0 transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="px-5 pt-6 pb-4 flex items-center gap-2">
-          <button
-            onClick={onNewChat}
+          <button onClick={onNewChat}
             className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2.5 text-white"
-            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
-          >
+            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             New chat
           </button>
-          {/* Close button — mobile only */}
-          <button
-            onClick={onClose}
-            className="lg:hidden w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-400"
-          >
+          <button onClick={onClose} className="lg:hidden w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-400">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
-
         <div className="px-3 flex-1 overflow-y-auto space-y-1 pb-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-2 mb-2">Recent</p>
-          {threads.map((t) => (
-            <button
-              key={t.id}
-              className="w-full text-left px-3 py-2.5 rounded-xl transition-colors"
-              style={{ background: t.active ? "#F5F3FF" : "transparent" }}
-              onMouseEnter={(e) => { if (!t.active) e.currentTarget.style.background = "#F9FAFB"; }}
-              onMouseLeave={(e) => { if (!t.active) e.currentTarget.style.background = "transparent"; }}
-            >
-              <p className="text-sm font-medium truncate" style={{ color: t.active ? "#7C3AED" : "#374151" }}>{t.title}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">{t.lastMessage}</p>
-              <p className="text-[10px] text-gray-300 mt-1">{t.timestamp}</p>
-            </button>
-          ))}
+          {threads.length === 0 ? (
+            <p className="text-xs text-gray-400 px-2 py-4 text-center">No conversations yet</p>
+          ) : (
+            <>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-2 mb-2">Recent</p>
+              {threads.map((t) => (
+                <button key={t.id} onClick={() => onSelect(t.id)}
+                  className="w-full text-left px-3 py-2.5 rounded-xl transition-colors"
+                  style={{ background: t.id === activeId ? "#F5F3FF" : "transparent" }}>
+                  <p className="text-sm font-medium truncate" style={{ color: t.id === activeId ? "#7C3AED" : "#374151" }}>
+                    {t.title}
+                  </p>
+                  {t.messages.length > 0 && (
+                    <p className="text-xs text-gray-400 truncate mt-0.5">
+                      {t.messages[t.messages.length - 1].text.slice(0, 50)}...
+                    </p>
+                  )}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </div>
     </>
@@ -152,70 +110,42 @@ function ThreadList({
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, userInitials }: { message: ChatMessage; userInitials: string }) {
   const isAgent = message.role === "agent";
-
   return (
     <div className={`flex gap-2.5 ${isAgent ? "" : "flex-row-reverse"}`}>
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ background: isAgent ? "linear-gradient(135deg, #2563EB, #7C3AED)" : "#E5E7EB" }}
-      >
+      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: isAgent ? "linear-gradient(135deg, #2563EB, #7C3AED)" : "#E5E7EB" }}>
         {isAgent ? (
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
           </svg>
         ) : (
-          <span className="text-[10px] font-bold text-gray-600">MI</span>
+          <span className="text-[10px] font-bold text-gray-600">{userInitials}</span>
         )}
       </div>
-
-      {/* Bubble — max-w capped so it never hits the edge on mobile */}
       <div className={`flex flex-col min-w-0 max-w-[80%] sm:max-w-[75%] ${isAgent ? "items-start" : "items-end"}`}>
         {message.isTyping ? (
           <div className="rounded-2xl rounded-tl-sm px-4 py-3" style={{ background: "#F5F3FF" }}>
             <div className="flex gap-1">
               {[0, 1, 2].map((i) => (
                 <span key={i} className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: "#A78BFA", animation: "typingDot 1.2s ease-in-out infinite", animationDelay: `${i * 0.15}s` }}
-                />
+                  style={{ background: "#A78BFA", animation: "typingDot 1.2s ease-in-out infinite", animationDelay: `${i * 0.15}s` }} />
               ))}
             </div>
           </div>
         ) : (
-          <div
-            className="rounded-2xl px-4 py-3 text-sm leading-relaxed break-words"
+          <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap"
             style={{
-              background:          isAgent ? "#F5F3FF" : "linear-gradient(135deg, #7C3AED, #6D28D9)",
-              color:               isAgent ? "#374151" : "#fff",
+              background: isAgent ? "#F5F3FF" : "linear-gradient(135deg, #7C3AED, #6D28D9)",
+              color: isAgent ? "#374151" : "#fff",
               borderTopLeftRadius: isAgent ? "4px" : "16px",
-              borderTopRightRadius:isAgent ? "16px" : "4px",
-            }}
-          >
+              borderTopRightRadius: isAgent ? "16px" : "4px",
+            }}>
             {message.text}
           </div>
         )}
-
-        {/* Source citations */}
-        {message.sources && message.sources.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {message.sources.map((s) => (
-              <a
-                key={s.meetingId}
-                href={`/dashboard/meetings/${s.meetingId}`}
-                className="flex items-center gap-1.5 text-xs rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
-                  <rect x="3" y="5" width="14" height="12" rx="2" /><path d="M17 9.5l4-2.5v9l-4-2.5" />
-                </svg>
-                <span className="truncate max-w-[120px] sm:max-w-none">{s.meetingTitle}</span>
-                <span className="text-gray-300 flex-shrink-0">·</span>
-                <span className="flex-shrink-0">{s.date}</span>
-              </a>
-            ))}
-          </div>
-        )}
-
         <p className="text-[10px] text-gray-300 mt-1.5 px-1">{message.timestamp}</p>
       </div>
     </div>
@@ -230,7 +160,8 @@ function WelcomeState({ onPromptClick }: { onPromptClick: (p: string) => void })
       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
         style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+          <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
       </div>
       <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1.5rem" }} className="text-gray-900 mb-2">
@@ -241,11 +172,8 @@ function WelcomeState({ onPromptClick }: { onPromptClick: (p: string) => void })
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
         {SUGGESTED_PROMPTS.map((prompt) => (
-          <button
-            key={prompt}
-            onClick={() => onPromptClick(prompt)}
-            className="text-left text-sm rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-600 hover:border-violet-300 hover:bg-violet-50/50 transition-colors"
-          >
+          <button key={prompt} onClick={() => onPromptClick(prompt)}
+            className="text-left text-sm rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-600 hover:border-violet-300 hover:bg-violet-50/50 transition-colors">
             {prompt}
           </button>
         ))}
@@ -257,41 +185,147 @@ function WelcomeState({ onPromptClick }: { onPromptClick: (p: string) => void })
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const [messages,   setMessages]   = useState<ChatMessage[]>(INITIAL_MESSAGES);
-  const [input,      setInput]      = useState<string>("");
-  const [isThinking, setIsThinking] = useState<boolean>(false);
-  const [threadOpen, setThreadOpen] = useState<boolean>(false);
-  const scrollRef    = useRef<HTMLDivElement>(null);
-  const textareaRef  = useRef<HTMLTextAreaElement>(null);
+  const { user, userDoc } = useAuth();
+  const [threads, setThreads]     = useState<ChatThread[]>([]);
+  const [activeId, setActiveId]   = useState<string>("");
+  const [input, setInput]         = useState("");
+  const [isThinking, setIsThinking] = useState(false);
+  const [threadOpen, setThreadOpen] = useState(false);
+  const scrollRef   = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const workspaceId = userDoc?.currentWorkspaceId ?? "";
+  const userName    = user?.displayName ?? user?.email ?? "User";
+  const userInitials = initialsFrom(userName);
+
+  const activeThread = threads.find((t) => t.id === activeId) ?? null;
+  const messages = activeThread?.messages ?? [];
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isThinking]);
 
-  function handlePromptClick(prompt: string) {
-    setInput(prompt);
-    textareaRef.current?.focus();
+  // ── Build workspace context from Firestore ────────────────────────────────
+  async function buildWorkspaceContext(): Promise<string> {
+    if (!workspaceId) return "";
+    try {
+      const [meetingsSnap, tasksSnap] = await Promise.all([
+        getDocs(query(collection(db, `workspaces/${workspaceId}/meetings`), orderBy("scheduledAt", "desc"), limit(10))),
+        getDocs(query(collection(db, `workspaces/${workspaceId}/tasks`), orderBy("createdAt", "desc"), limit(20))),
+      ]);
+
+      const meetings = meetingsSnap.docs.map((d) => {
+        const m = d.data();
+        return `Meeting: "${m.title}" | Platform: ${m.platform} | Date: ${formatTs(m.scheduledAt)} | Status: ${m.status} | Tasks: ${m.taskCount} | Decisions: ${m.decisionCount}${m.summary ? ` | Summary: ${m.summary}` : ""}`;
+      }).join("\n");
+
+      const tasks = tasksSnap.docs.map((d) => {
+        const t = d.data();
+        return `Task: "${t.title}" | Status: ${t.status} | Owner: ${t.ownerName ?? "Unassigned"} | Meeting: ${t.meetingTitle} | Overdue: ${t.overdue ? "Yes" : "No"}${t.deadline ? ` | Deadline: ${formatTs(t.deadline)}` : ""}`;
+      }).join("\n");
+
+      return `WORKSPACE CONTEXT:\n\nMEETINGS (most recent 10):\n${meetings || "No meetings yet."}\n\nTASKS (most recent 20):\n${tasks || "No tasks yet."}`;
+    } catch {
+      return "";
+    }
   }
 
+  // ── Send message ──────────────────────────────────────────────────────────
   async function sendMessage(text: string) {
-    if (!text.trim()) return;
-    const userMessage: ChatMessage = {
-      id: `u${Date.now()}`, role: "user", text: text.trim(),
-      timestamp: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    if (!text.trim() || isThinking) return;
+
+    const userMsg: ChatMessage = {
+      id: `u${Date.now()}`, role: "user",
+      text: text.trim(), timestamp: now(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+
+    let currentThread: ChatThread;
+
+    if (!activeId) {
+      // Create new thread
+      const newThread: ChatThread = {
+        id: `t${Date.now()}`,
+        title: text.trim().slice(0, 50),
+        messages: [userMsg],
+      };
+      setThreads((prev) => [newThread, ...prev]);
+      setActiveId(newThread.id);
+      currentThread = newThread;
+    } else {
+      setThreads((prev) => prev.map((t) =>
+        t.id === activeId ? { ...t, messages: [...t.messages, userMsg] } : t
+      ));
+      currentThread = { ...activeThread!, messages: [...(activeThread?.messages ?? []), userMsg] };
+    }
+
     setInput("");
     setIsThinking(true);
 
-    await new Promise((r) => setTimeout(r, 1400));
+    try {
+      const context = await buildWorkspaceContext();
 
-    const agentMessage: ChatMessage = {
-      id: `a${Date.now()}`, role: "agent",
-      text: "I'd pull this from your workspace's meeting history and respond with cited sources, just like the examples above.",
-      timestamp: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-    };
-    setIsThinking(false);
-    setMessages((prev) => [...prev, agentMessage]);
+      // Build message history for the API
+      const history = currentThread.messages.map((m) => ({
+        role: m.role === "agent" ? "assistant" : "user",
+        content: m.text,
+      }));
+
+      const systemPrompt = `You are Syntra, an AI meeting co-worker. You have full context on the user's workspace meetings, tasks, and decisions. Answer questions clearly and concisely based on the workspace data provided. If the data doesn't contain the answer, say so honestly.
+
+${context}
+
+Current user: ${userName}
+Workspace ID: ${workspaceId}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: history,
+        }),
+      });
+
+      const data = await res.json();
+      const responseText = data.content?.[0]?.text ?? "I'm sorry, I couldn't generate a response. Please try again.";
+
+      const agentMsg: ChatMessage = {
+        id: `a${Date.now()}`, role: "agent",
+        text: responseText, timestamp: now(),
+      };
+
+      setThreads((prev) => prev.map((t) =>
+        t.id === (activeId || currentThread.id)
+          ? { ...t, messages: [...t.messages, agentMsg] }
+          : t
+      ));
+    } catch (err) {
+      console.error("Chat error:", err);
+      const errMsg: ChatMessage = {
+        id: `e${Date.now()}`, role: "agent",
+        text: "Sorry, something went wrong. Please try again.",
+        timestamp: now(),
+      };
+      setThreads((prev) => prev.map((t) =>
+        t.id === (activeId || currentThread.id)
+          ? { ...t, messages: [...t.messages, errMsg] }
+          : t
+      ));
+    } finally {
+      setIsThinking(false);
+    }
+  }
+
+  function handleNewChat() {
+    setActiveId("");
+    setThreadOpen(false);
+  }
+
+  function handlePromptClick(prompt: string) {
+    setInput(prompt);
+    textareaRef.current?.focus();
   }
 
   function handleSubmit(e: FormEvent) { e.preventDefault(); sendMessage(input); }
@@ -315,32 +349,29 @@ export default function ChatPage() {
       <Sidebar activeId="chat" />
 
       <ThreadList
-        threads={THREADS}
-        onNewChat={() => setMessages([])}
+        threads={threads}
+        activeId={activeId}
+        onSelect={(id) => { setActiveId(id); setThreadOpen(false); }}
+        onNewChat={handleNewChat}
         open={threadOpen}
         onClose={() => setThreadOpen(false)}
       />
 
-      {/* Chat panel — min-w-0 to stay in bounds */}
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-
         {/* Header */}
         <div className="flex items-center gap-3 px-4 sm:px-8 py-4 border-b border-gray-100 flex-shrink-0">
-          {/* Hamburger to open thread panel on mobile */}
-          <button
-            onClick={() => setThreadOpen(true)}
-            className="lg:hidden w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0"
-          >
+          <button onClick={() => setThreadOpen(true)}
+            className="lg:hidden w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center text-gray-500 flex-shrink-0">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-gray-900 truncate">Ask Syntra</h1>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">Powered by Gemini · Has context on all workspace meetings</p>
+            <h1 className="text-base font-bold text-gray-900 truncate">
+              {activeThread?.title ?? "Ask Syntra"}
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">Has context on all workspace meetings and tasks</p>
           </div>
-
           <div className="flex items-center gap-1.5 text-xs font-mono text-gray-400 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             <span className="hidden sm:inline">Online</span>
@@ -353,9 +384,14 @@ export default function ChatPage() {
             <WelcomeState onPromptClick={handlePromptClick} />
           ) : (
             <div className="max-w-3xl mx-auto space-y-6">
-              {messages.map((m) => <MessageBubble key={m.id} message={m} />)}
+              {messages.map((m) => (
+                <MessageBubble key={m.id} message={m} userInitials={userInitials} />
+              ))}
               {isThinking && (
-                <MessageBubble message={{ id: "typing", role: "agent", text: "", timestamp: "", isTyping: true }} />
+                <MessageBubble
+                  message={{ id: "typing", role: "agent", text: "", timestamp: "", isTyping: true }}
+                  userInitials={userInitials}
+                />
               )}
             </div>
           )}
@@ -375,18 +411,17 @@ export default function ChatPage() {
                 className="flex-1 min-w-0 resize-none text-sm text-gray-800 placeholder-gray-400 focus:outline-none py-1.5 max-h-32"
                 style={{ fieldSizing: "content" } as React.CSSProperties}
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || isThinking}
+              <button type="submit" disabled={!input.trim() || isThinking}
                 className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
-              >
+                style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
                 </svg>
               </button>
             </div>
-            <p className="text-[10px] text-gray-300 mt-2 text-center">Syntra can make mistakes. Check important info against the source meeting.</p>
+            <p className="text-[10px] text-gray-300 mt-2 text-center">
+              Syntra can make mistakes. Check important info against the source meeting.
+            </p>
           </form>
         </div>
       </main>
