@@ -2,15 +2,17 @@
 
 import { Suspense, useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 
-interface FormData {
-  fullName: string;
-  password: string;
-  confirmPassword: string;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Mode = "detecting" | "new_user" | "existing_user";
 
 interface FormErrors {
   fullName?: string;
@@ -30,6 +32,8 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   if (score <= 3) return { label: "Good", color: "#F59E0B", width: "66%" };
   return { label: "Strong", color: "#7C3AED", width: "100%" };
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
@@ -65,17 +69,22 @@ function InvitePageSkeleton() {
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
         <SyntraLogo />
         <div className="space-y-4 animate-pulse">
-          <div className="h-16 rounded-xl bg-gray-100" />
-          <div className="h-8 rounded-lg bg-gray-100" />
-          <div className="h-12 rounded-xl bg-gray-100" />
-          <div className="h-12 rounded-xl bg-gray-100" />
-          <div className="h-12 rounded-xl bg-gray-100" />
-          <div className="h-12 rounded-xl bg-violet-100" />
+          {[...Array(5)].map((_, i) => <div key={i} className={`h-12 rounded-xl ${i === 4 ? "bg-violet-100" : "bg-gray-100"}`} />)}
         </div>
       </div>
     </div>
   );
 }
+
+// ─── Eye icon ─────────────────────────────────────────────────────────────────
+
+function EyeIcon({ show }: { show: boolean }) {
+  return show
+    ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
+}
+
+// ─── Inner component ──────────────────────────────────────────────────────────
 
 function InviteAcceptInner() {
   const router = useRouter();
@@ -87,74 +96,96 @@ function InviteAcceptInner() {
   const invitedByName = decodeURIComponent(params.get("invitedBy") ?? "your team");
   const emailParam    = decodeURIComponent(params.get("email") ?? "");
 
-  const [formData, setFormData] = useState<FormData>({ fullName: "", password: "", confirmPassword: "" });
-  const [errors, setErrors]     = useState<FormErrors>({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm]   = useState(false);
+  const [mode, setMode]           = useState<Mode>("detecting");
+  const [fullName, setFullName]   = useState("");
+  const [password, setPassword]   = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [errors, setErrors]       = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const strength = getPasswordStrength(formData.password);
+  const strength = getPasswordStrength(password);
 
-  function validate(): boolean {
-    const next: FormErrors = {};
-    if (!formData.fullName.trim()) next.fullName = "Full name is required";
-    if (!formData.password) {
-      next.password = "Password is required";
-    } else if (formData.password.length < 8) {
-      next.password = "Password must be at least 8 characters";
-    }
-    if (formData.confirmPassword !== formData.password) next.confirmPassword = "Passwords do not match";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
-  function updateField<K extends keyof FormData>(field: K, value: string) {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
-    if (errors.general) setErrors((prev) => ({ ...prev, general: undefined }));
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  // ── Step 1: check if email already has an account ─────────────────────────
+  async function handleCheckEmail() {
     if (!inviteKey || !workspaceId || !emailParam) {
       setErrors({ general: "Invalid invite link. Please ask your workspace owner to resend." });
       return;
     }
-
     setIsSubmitting(true);
     try {
-      // 1. Validate invite doc BEFORE creating account
+      // Validate invite doc first
       const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
       if (!inviteSnap.exists() || inviteSnap.data().consumed) {
-        setErrors({ general: "This invite link has already been used or has expired. Ask your workspace owner to send a new one." });
-        setIsSubmitting(false);
+        setErrors({ general: "This invite link has already been used or has expired." });
         return;
       }
+      // Try signing in with a dummy password to detect if the account exists
+      // Firebase returns auth/wrong-password if the user EXISTS
+      // and auth/user-not-found if they DON'T
+      try {
+        await signInWithEmailAndPassword(auth, emailParam, "__DETECT_ONLY__");
+      } catch (err: any) {
+        if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+          // Account EXISTS — show login form
+          setMode("existing_user");
+        } else if (err.code === "auth/user-not-found") {
+          // Account does NOT exist — show signup form
+          setMode("new_user");
+        } else {
+          // Any other error still means user likely doesn't exist
+          setMode("new_user");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setErrors({ general: "Something went wrong. Please try again." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
-      const inviteData = inviteSnap.data();
+  // ── Shared: add user to workspace after auth ──────────────────────────────
+  async function addToWorkspace(uid: string, name: string, inviteData: any) {
+    // Remove placeholder invite member doc
+    const membersSnap = await import("firebase/firestore").then(({ collection, query, where, getDocs }) =>
+      getDocs(query(collection(db, `workspaces/${workspaceId}/members`), where("email", "==", emailParam)))
+    );
+    for (const d of membersSnap.docs) {
+      if (d.data().status === "Invited") {
+        await import("firebase/firestore").then(({ deleteDoc }) => deleteDoc(d.ref));
+      }
+    }
 
-      // 2. Create Firebase Auth account
-      const credential = await createUserWithEmailAndPassword(auth, emailParam, formData.password);
-      await updateProfile(credential.user, { displayName: formData.fullName });
+    // Write real member doc
+    await setDoc(doc(db, `workspaces/${workspaceId}/members`, uid), {
+      uid,
+      email: emailParam,
+      fullName: name,
+      photoURL: null,
+      role: inviteData.role ?? "Member",
+      status: "Active",
+      joinedAt: serverTimestamp(),
+      invitedAt: inviteData.invitedAt ?? serverTimestamp(),
+    });
 
-      // 3. Add to workspace members
-      await setDoc(doc(db, "workspaces", workspaceId, "members", credential.user.uid), {
-        uid: credential.user.uid,
-        email: emailParam,
-        fullName: formData.fullName,
-        photoURL: null,
-        role: inviteData.role ?? "Member",
-        status: "Active",
-        joinedAt: serverTimestamp(),
-        invitedAt: inviteData.invitedAt ?? serverTimestamp(),
+    // Update user doc — add workspace
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      await updateDoc(userRef, {
+        workspaceIds: arrayUnion(workspaceId),
+        currentWorkspaceId: workspaceId,
+        onboardingComplete: true,
+        updatedAt: serverTimestamp(),
       });
-
-      // 4. Create user doc — onboardingComplete true so login skips onboarding
-      await setDoc(doc(db, "users", credential.user.uid), {
-        uid: credential.user.uid,
+    } else {
+      // Create user doc if it doesn't exist
+      await setDoc(userRef, {
+        uid,
         email: emailParam,
-        fullName: formData.fullName,
+        fullName: name,
         photoURL: null,
         workspaceIds: [workspaceId],
         currentWorkspaceId: workspaceId,
@@ -162,39 +193,91 @@ function InviteAcceptInner() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+    }
 
-      // 5. Mark invite consumed
-      await setDoc(doc(db, "invites", inviteKey), {
-        consumed: true,
-        acceptedAt: serverTimestamp(),
-        acceptedBy: credential.user.uid,
-      }, { merge: true });
+    // Mark invite consumed
+    await setDoc(doc(db, "invites", inviteKey), {
+      consumed: true,
+      acceptedAt: serverTimestamp(),
+      acceptedBy: uid,
+    }, { merge: true });
+  }
 
-      // 6. Send branded verification email via Nodemailer
-      await fetch("/api/email/send-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: credential.user.uid,
-          email: emailParam,
-          fullName: formData.fullName,
-        }),
-      });
+  // ── Flow A: existing user logs in and accepts ─────────────────────────────
+  async function handleExistingUser(e: FormEvent) {
+    e.preventDefault();
+    if (!password) { setErrors({ password: "Password is required" }); return; }
+    setIsSubmitting(true);
+    setErrors({});
+    try {
+      const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
+      if (!inviteSnap.exists() || inviteSnap.data().consumed) {
+        setErrors({ general: "This invite link has already been used or expired." });
+        return;
+      }
 
-      // 7. Redirect to verify-email page
-      router.push("/verify-email");
-    } catch (err: unknown) {
-      console.error("Invite accept error:", err);
-      const code = (err as { code?: string }).code;
-      if (code === "auth/email-already-in-use") {
-        setErrors({ general: "An account with this email already exists. Try logging in instead." });
+      const result = await signInWithEmailAndPassword(auth, emailParam, password);
+      const { user } = result;
+      const name = user.displayName ?? (fullName || emailParam.split("@")[0]);
+
+      await addToWorkspace(user.uid, name, inviteSnap.data());
+      router.push("/dashboard");
+    } catch (err: any) {
+      if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+        setErrors({ password: "Incorrect password. Please try again." });
       } else {
-        setErrors({ general: `Something went wrong: ${(err as Error).message ?? code ?? "unknown error"}` });
+        setErrors({ general: `Something went wrong: ${err.message ?? err.code}` });
       }
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  // ── Flow B: new user creates account and accepts ──────────────────────────
+  async function handleNewUser(e: FormEvent) {
+    e.preventDefault();
+    const next: FormErrors = {};
+    if (!fullName.trim()) next.fullName = "Full name is required";
+    if (!password) { next.password = "Password is required"; }
+    else if (password.length < 8) { next.password = "Password must be at least 8 characters"; }
+    if (confirmPw !== password) next.confirmPassword = "Passwords do not match";
+    if (Object.keys(next).length) { setErrors(next); return; }
+
+    setIsSubmitting(true);
+    setErrors({});
+    try {
+      const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
+      if (!inviteSnap.exists() || inviteSnap.data().consumed) {
+        setErrors({ general: "This invite link has already been used or expired." });
+        return;
+      }
+
+      const credential = await createUserWithEmailAndPassword(auth, emailParam, password);
+      await updateProfile(credential.user, { displayName: fullName });
+      await addToWorkspace(credential.user.uid, fullName, inviteSnap.data());
+
+      // Send verification email
+      await fetch("/api/email/send-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: credential.user.uid, email: emailParam, fullName }),
+      });
+
+      router.push("/verify-email");
+    } catch (err: any) {
+      if (err.code === "auth/email-already-in-use") {
+        // Edge case: account was just created between detection and signup
+        setMode("existing_user");
+        setErrors({ general: "An account with this email already exists. Please log in below." });
+      } else {
+        setErrors({ general: `Something went wrong: ${err.message ?? err.code}` });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  // ─── Invalid link ──────────────────────────────────────────────────────────
 
   if (!inviteKey || !workspaceId || !emailParam) {
     return (
@@ -217,63 +300,151 @@ function InviteAcceptInner() {
     );
   }
 
+  // ─── Invite banner (shared) ────────────────────────────────────────────────
+
+  const InviteBanner = () => (
+    <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4 mb-7 text-center">
+      <p className="text-xs text-violet-600 font-medium uppercase tracking-wide mb-1">You&apos;ve been invited</p>
+      <p className="text-sm font-semibold text-gray-900">{invitedByName} invited you to join</p>
+      <p className="text-base font-bold mt-0.5" style={{ color: "#7C3AED" }}>{workspaceName}</p>
+      <p className="text-xs text-gray-400 mt-1">{emailParam}</p>
+    </div>
+  );
+
+  // ─── Step 0: initial screen (detect account) ───────────────────────────────
+
+  if (mode === "detecting") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12"
+        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+        <style>{styles}</style>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
+          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+          <SyntraLogo />
+          <InviteBanner />
+          <div className="text-center mb-7">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Accept your invite</h1>
+            <p className="text-gray-500 text-sm">We&apos;ll check if you already have a Syntra account.</p>
+          </div>
+          {errors.general && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
+          )}
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
+            <input type="email" value={emailParam} disabled
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+          </div>
+          <button onClick={handleCheckEmail} disabled={isSubmitting}
+            className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
+            {isSubmitting ? (
+              <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Checking...</>
+            ) : "Continue"}
+          </button>
+          <p className="text-center text-sm text-gray-500 mt-6">
+            Already have an account? <a href="/login" className="font-semibold" style={{ color: "#7C3AED" }}>Log in</a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Existing user: log in to accept ──────────────────────────────────────
+
+  if (mode === "existing_user") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12"
+        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+        <style>{styles}</style>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
+          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+          <SyntraLogo />
+          <InviteBanner />
+          <div className="text-center mb-7">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back!</h1>
+            <p className="text-gray-500 text-sm">You already have a Syntra account. Log in to join <strong>{workspaceName}</strong>.</p>
+          </div>
+          {errors.general && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
+          )}
+          <form onSubmit={handleExistingUser} className="space-y-5" noValidate>
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
+              <input type="email" value={emailParam} disabled
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
+              <div className="relative">
+                <input type={showPw ? "text" : "password"} value={password} autoFocus
+                  onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
+                  placeholder="Enter your password"
+                  className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.password ? "error" : "border-gray-200"}`} />
+                <button type="button" onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <EyeIcon show={showPw} />
+                </button>
+              </div>
+              {errors.password && <p className="text-xs text-red-500 mt-1.5">{errors.password}</p>}
+            </div>
+            <a href="/forgot-password" className="inline-block text-xs font-medium" style={{ color: "#7C3AED" }}>Forgot password?</a>
+            <button type="submit" disabled={isSubmitting}
+              className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
+              {isSubmitting ? (
+                <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Joining workspace...</>
+              ) : "Log in & join workspace"}
+            </button>
+          </form>
+          <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); }}
+            className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">
+            ← Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── New user: create account ──────────────────────────────────────────────
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12"
       style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
       <style>{styles}</style>
-
       <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
         style={{ borderColor: "rgba(124,58,237,0.15)" }}>
         <SyntraLogo />
-
-        <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4 mb-7 text-center">
-          <p className="text-xs text-violet-600 font-medium uppercase tracking-wide mb-1">You&apos;ve been invited</p>
-          <p className="text-sm font-semibold text-gray-900">{invitedByName} invited you to join</p>
-          <p className="text-base font-bold mt-0.5" style={{ color: "#7C3AED" }}>{workspaceName}</p>
-          <p className="text-xs text-gray-400 mt-1">{emailParam}</p>
-        </div>
-
+        <InviteBanner />
         <div className="text-center mb-7">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h1>
-          <p className="text-gray-500 text-sm">Set up your password to join the workspace</p>
+          <p className="text-gray-500 text-sm">Set up your password to join <strong>{workspaceName}</strong>.</p>
         </div>
-
         {errors.general && (
-          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {errors.general}
-          </div>
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <form onSubmit={handleNewUser} className="space-y-5" noValidate>
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
             <input type="email" value={emailParam} disabled
               className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Full name</label>
-            <input type="text" placeholder="John Carter" value={formData.fullName} autoFocus
-              onChange={(e) => updateField("fullName", e.target.value)}
+            <input type="text" placeholder="John Carter" value={fullName} autoFocus
+              onChange={(e) => { setFullName(e.target.value); setErrors((p) => ({ ...p, fullName: undefined })); }}
               className={`syntra-input w-full rounded-xl border px-4 py-3 text-sm text-gray-900 placeholder-gray-400 ${errors.fullName ? "error" : "border-gray-200"}`} />
             {errors.fullName && <p className="text-xs text-red-500 mt-1.5">{errors.fullName}</p>}
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
             <div className="relative">
-              <input type={showPassword ? "text" : "password"} placeholder="At least 8 characters"
-                value={formData.password} onChange={(e) => updateField("password", e.target.value)}
+              <input type={showPw ? "text" : "password"} placeholder="At least 8 characters"
+                value={password} onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
                 className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.password ? "error" : "border-gray-200"}`} />
-              <button type="button" onClick={() => setShowPassword((v) => !v)}
+              <button type="button" onClick={() => setShowPw((v) => !v)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showPassword
-                  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                }
+                <EyeIcon show={showPw} />
               </button>
             </div>
-            {formData.password && (
+            {password && (
               <div className="mt-2">
                 <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-300" style={{ width: strength.width, background: strength.color }} />
@@ -283,42 +454,30 @@ function InviteAcceptInner() {
             )}
             {errors.password && <p className="text-xs text-red-500 mt-1.5">{errors.password}</p>}
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Confirm password</label>
             <div className="relative">
               <input type={showConfirm ? "text" : "password"} placeholder="Re-enter your password"
-                value={formData.confirmPassword} onChange={(e) => updateField("confirmPassword", e.target.value)}
+                value={confirmPw} onChange={(e) => { setConfirmPw(e.target.value); setErrors((p) => ({ ...p, confirmPassword: undefined })); }}
                 className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.confirmPassword ? "error" : "border-gray-200"}`} />
               <button type="button" onClick={() => setShowConfirm((v) => !v)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                {showConfirm
-                  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                }
+                <EyeIcon show={showConfirm} />
               </button>
             </div>
             {errors.confirmPassword && <p className="text-xs text-red-500 mt-1.5">{errors.confirmPassword}</p>}
           </div>
-
           <button type="submit" disabled={isSubmitting}
             className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
             {isSubmitting ? (
-              <>
-                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                Creating account...
-              </>
+              <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Creating account...</>
             ) : "Accept invite & create account"}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Already have an account?{" "}
-          <a href="/login" className="font-semibold" style={{ color: "#7C3AED" }}>Log in</a>
-        </p>
+        <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); setFullName(""); setConfirmPw(""); }}
+          className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">
+          ← Back
+        </button>
       </div>
     </div>
   );
