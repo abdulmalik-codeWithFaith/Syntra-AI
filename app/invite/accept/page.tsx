@@ -7,10 +7,8 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, arrayUnion, deleteDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Mode = "detecting" | "new_user" | "existing_user";
 
@@ -33,8 +31,6 @@ function getPasswordStrength(password: string): { label: string; color: string; 
   return { label: "Strong", color: "#7C3AED", width: "100%" };
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700&display=swap');
   .syntra-input { transition: all 0.15s ease; }
@@ -48,8 +44,7 @@ const styles = `
 
 const SyntraLogo = () => (
   <div className="flex flex-col items-center mb-7">
-    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-      style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
+    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}>
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
         <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
@@ -60,31 +55,11 @@ const SyntraLogo = () => (
   </div>
 );
 
-function InvitePageSkeleton() {
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12"
-      style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-      <style>{styles}</style>
-      <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
-        style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-        <SyntraLogo />
-        <div className="space-y-4 animate-pulse">
-          {[...Array(5)].map((_, i) => <div key={i} className={`h-12 rounded-xl ${i === 4 ? "bg-violet-100" : "bg-gray-100"}`} />)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Eye icon ─────────────────────────────────────────────────────────────────
-
 function EyeIcon({ show }: { show: boolean }) {
   return show
     ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
     : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
 }
-
-// ─── Inner component ──────────────────────────────────────────────────────────
 
 function InviteAcceptInner() {
   const router = useRouter();
@@ -95,6 +70,10 @@ function InviteAcceptInner() {
   const workspaceName = decodeURIComponent(params.get("name") ?? "your workspace");
   const invitedByName = decodeURIComponent(params.get("invitedBy") ?? "your team");
   const emailParam    = decodeURIComponent(params.get("email") ?? "");
+
+  // The placeholder member doc was created with inviteKey as the doc ID
+  // We'll delete it and replace with the real uid on accept
+  const placeholderMemberId = inviteKey;
 
   const [mode, setMode]           = useState<Mode>("detecting");
   const [fullName, setFullName]   = useState("");
@@ -107,58 +86,48 @@ function InviteAcceptInner() {
 
   const strength = getPasswordStrength(password);
 
-  // ── Step 1: check if email already has an account ─────────────────────────
+  // ── Validate invite and detect if user exists ─────────────────────────────
   async function handleCheckEmail() {
-    if (!inviteKey || !workspaceId || !emailParam) {
-      setErrors({ general: "Invalid invite link. Please ask your workspace owner to resend." });
-      return;
-    }
     setIsSubmitting(true);
+    setErrors({});
     try {
-      // Validate invite doc first
+      // Read invite doc (public read allowed)
       const inviteSnap = await getDoc(doc(db, "invites", inviteKey));
       if (!inviteSnap.exists() || inviteSnap.data().consumed) {
         setErrors({ general: "This invite link has already been used or has expired." });
         return;
       }
-      // Try signing in with a dummy password to detect if the account exists
-      // Firebase returns auth/wrong-password if the user EXISTS
-      // and auth/user-not-found if they DON'T
+
+      // Detect if account exists by attempting sign in with wrong password
       try {
-        await signInWithEmailAndPassword(auth, emailParam, "__DETECT_ONLY__");
+        await signInWithEmailAndPassword(auth, emailParam, "__DETECT__");
       } catch (err: any) {
         if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-          // Account EXISTS — show login form
           setMode("existing_user");
-        } else if (err.code === "auth/user-not-found") {
-          // Account does NOT exist — show signup form
-          setMode("new_user");
         } else {
-          // Any other error still means user likely doesn't exist
+          // auth/user-not-found or anything else → new user
           setMode("new_user");
         }
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      setErrors({ general: "Something went wrong. Please try again." });
+    } catch (err: any) {
+      console.error("Check email error:", err);
+      setErrors({ general: `Error: ${err.message ?? err.code}` });
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  // ── Shared: add user to workspace after auth ──────────────────────────────
+  // ── Core: add authenticated user to workspace ─────────────────────────────
+  // Called after auth succeeds. Does NOT query members collection.
   async function addToWorkspace(uid: string, name: string, inviteData: any) {
-    // Remove placeholder invite member doc
-    const membersSnap = await import("firebase/firestore").then(({ collection, query, where, getDocs }) =>
-      getDocs(query(collection(db, `workspaces/${workspaceId}/members`), where("email", "==", emailParam)))
-    );
-    for (const d of membersSnap.docs) {
-      if (d.data().status === "Invited") {
-        await import("firebase/firestore").then(({ deleteDoc }) => deleteDoc(d.ref));
-      }
-    }
+    // 1. Delete the placeholder member doc (created with inviteKey as ID)
+    //    We do this with the authenticated user — rules allow delete if uid == memberId
+    //    but the placeholder ID is inviteKey, not uid.
+    //    So we do this via the invite API route instead — just skip it here
+    //    and let the placeholder doc be overwritten by the real one below.
 
-    // Write real member doc
+    // 2. Write real member doc using the user's actual UID
     await setDoc(doc(db, `workspaces/${workspaceId}/members`, uid), {
       uid,
       email: emailParam,
@@ -167,10 +136,10 @@ function InviteAcceptInner() {
       role: inviteData.role ?? "Member",
       status: "Active",
       joinedAt: serverTimestamp(),
-      invitedAt: inviteData.invitedAt ?? serverTimestamp(),
+      invitedAt: inviteData.createdAt ?? serverTimestamp(),
     });
 
-    // Update user doc — add workspace
+    // 3. Update user doc — now user IS a member so this write is allowed
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
@@ -181,7 +150,6 @@ function InviteAcceptInner() {
         updatedAt: serverTimestamp(),
       });
     } else {
-      // Create user doc if it doesn't exist
       await setDoc(userRef, {
         uid,
         email: emailParam,
@@ -195,15 +163,22 @@ function InviteAcceptInner() {
       });
     }
 
-    // Mark invite consumed
+    // 4. Mark invite consumed (public update allowed)
     await setDoc(doc(db, "invites", inviteKey), {
       consumed: true,
       acceptedAt: serverTimestamp(),
       acceptedBy: uid,
     }, { merge: true });
+
+    // 5. Clean up placeholder member doc via API (server-side, bypasses rules)
+    fetch("/api/team/remove-placeholder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, placeholderMemberId }),
+    }).catch(() => {}); // fire and forget
   }
 
-  // ── Flow A: existing user logs in and accepts ─────────────────────────────
+  // ── Existing user: log in to accept ──────────────────────────────────────
   async function handleExistingUser(e: FormEvent) {
     e.preventDefault();
     if (!password) { setErrors({ password: "Password is required" }); return; }
@@ -215,11 +190,9 @@ function InviteAcceptInner() {
         setErrors({ general: "This invite link has already been used or expired." });
         return;
       }
-
       const result = await signInWithEmailAndPassword(auth, emailParam, password);
       const { user } = result;
-      const name = user.displayName ?? (fullName || emailParam.split("@")[0]);
-
+      const name = user.displayName ?? emailParam.split("@")[0];
       await addToWorkspace(user.uid, name, inviteSnap.data());
       router.push("/dashboard");
     } catch (err: any) {
@@ -233,13 +206,13 @@ function InviteAcceptInner() {
     }
   }
 
-  // ── Flow B: new user creates account and accepts ──────────────────────────
+  // ── New user: create account and accept ───────────────────────────────────
   async function handleNewUser(e: FormEvent) {
     e.preventDefault();
     const next: FormErrors = {};
     if (!fullName.trim()) next.fullName = "Full name is required";
-    if (!password) { next.password = "Password is required"; }
-    else if (password.length < 8) { next.password = "Password must be at least 8 characters"; }
+    if (!password) next.password = "Password is required";
+    else if (password.length < 8) next.password = "Password must be at least 8 characters";
     if (confirmPw !== password) next.confirmPassword = "Passwords do not match";
     if (Object.keys(next).length) { setErrors(next); return; }
 
@@ -251,7 +224,6 @@ function InviteAcceptInner() {
         setErrors({ general: "This invite link has already been used or expired." });
         return;
       }
-
       const credential = await createUserWithEmailAndPassword(auth, emailParam, password);
       await updateProfile(credential.user, { displayName: fullName });
       await addToWorkspace(credential.user.uid, fullName, inviteSnap.data());
@@ -266,7 +238,6 @@ function InviteAcceptInner() {
       router.push("/verify-email");
     } catch (err: any) {
       if (err.code === "auth/email-already-in-use") {
-        // Edge case: account was just created between detection and signup
         setMode("existing_user");
         setErrors({ general: "An account with this email already exists. Please log in below." });
       } else {
@@ -277,31 +248,6 @@ function InviteAcceptInner() {
     }
   }
 
-  // ─── Invalid link ──────────────────────────────────────────────────────────
-
-  if (!inviteKey || !workspaceId || !emailParam) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4"
-        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
-        <style>{styles}</style>
-        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 text-center card-glow"
-          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
-          <SyntraLogo />
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#FEF2F2" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Invalid invite link</h1>
-          <p className="text-sm text-gray-500 mb-6">This link is missing required information. Ask your workspace owner to send a new invite.</p>
-          <a href="/login" className="text-sm font-semibold" style={{ color: "#7C3AED" }}>Go to login</a>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Invite banner (shared) ────────────────────────────────────────────────
-
   const InviteBanner = () => (
     <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4 mb-7 text-center">
       <p className="text-xs text-violet-600 font-medium uppercase tracking-wide mb-1">You&apos;ve been invited</p>
@@ -311,66 +257,63 @@ function InviteAcceptInner() {
     </div>
   );
 
-  // ─── Step 0: initial screen (detect account) ───────────────────────────────
+  if (!inviteKey || !workspaceId || !emailParam) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+        <style>{styles}</style>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 text-center card-glow" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+          <SyntraLogo />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Invalid invite link</h1>
+          <p className="text-sm text-gray-500 mb-6">Ask your workspace owner to send a new invite.</p>
+          <a href="/login" className="text-sm font-semibold" style={{ color: "#7C3AED" }}>Go to login</a>
+        </div>
+      </div>
+    );
+  }
 
+  // ── Step 0: detect ────────────────────────────────────────────────────────
   if (mode === "detecting") {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-12"
-        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
         <style>{styles}</style>
-        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
-          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
           <SyntraLogo />
           <InviteBanner />
           <div className="text-center mb-7">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Accept your invite</h1>
             <p className="text-gray-500 text-sm">We&apos;ll check if you already have a Syntra account.</p>
           </div>
-          {errors.general && (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
-          )}
+          {errors.general && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>}
           <div className="mb-5">
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
-            <input type="email" value={emailParam} disabled
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+            <input type="email" value={emailParam} disabled className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
           </div>
           <button onClick={handleCheckEmail} disabled={isSubmitting}
             className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
-            {isSubmitting ? (
-              <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Checking...</>
-            ) : "Continue"}
+            {isSubmitting ? <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Checking...</> : "Continue"}
           </button>
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account? <a href="/login" className="font-semibold" style={{ color: "#7C3AED" }}>Log in</a>
-          </p>
         </div>
       </div>
     );
   }
 
-  // ─── Existing user: log in to accept ──────────────────────────────────────
-
+  // ── Existing user ─────────────────────────────────────────────────────────
   if (mode === "existing_user") {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-12"
-        style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
         <style>{styles}</style>
-        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
-          style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+        <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
           <SyntraLogo />
           <InviteBanner />
           <div className="text-center mb-7">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back!</h1>
-            <p className="text-gray-500 text-sm">You already have a Syntra account. Log in to join <strong>{workspaceName}</strong>.</p>
+            <p className="text-gray-500 text-sm">You already have an account. Log in to join <strong>{workspaceName}</strong>.</p>
           </div>
-          {errors.general && (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
-          )}
+          {errors.general && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>}
           <form onSubmit={handleExistingUser} className="space-y-5" noValidate>
             <div>
               <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
-              <input type="email" value={emailParam} disabled
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+              <input type="email" value={emailParam} disabled className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
@@ -379,52 +322,38 @@ function InviteAcceptInner() {
                   onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
                   placeholder="Enter your password"
                   className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.password ? "error" : "border-gray-200"}`} />
-                <button type="button" onClick={() => setShowPw((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <EyeIcon show={showPw} />
-                </button>
+                <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><EyeIcon show={showPw} /></button>
               </div>
               {errors.password && <p className="text-xs text-red-500 mt-1.5">{errors.password}</p>}
             </div>
             <a href="/forgot-password" className="inline-block text-xs font-medium" style={{ color: "#7C3AED" }}>Forgot password?</a>
             <button type="submit" disabled={isSubmitting}
               className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
-              {isSubmitting ? (
-                <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Joining workspace...</>
-              ) : "Log in & join workspace"}
+              {isSubmitting ? <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Joining...</> : "Log in & join workspace"}
             </button>
           </form>
-          <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); }}
-            className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">
-            ← Back
-          </button>
+          <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); }} className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">← Back</button>
         </div>
       </div>
     );
   }
 
-  // ─── New user: create account ──────────────────────────────────────────────
-
+  // ── New user ──────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12"
-      style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
       <style>{styles}</style>
-      <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow"
-        style={{ borderColor: "rgba(124,58,237,0.15)" }}>
+      <div className="w-full max-w-md rounded-3xl border bg-white px-8 py-10 sm:px-10 sm:py-12 card-glow" style={{ borderColor: "rgba(124,58,237,0.15)" }}>
         <SyntraLogo />
         <InviteBanner />
         <div className="text-center mb-7">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h1>
           <p className="text-gray-500 text-sm">Set up your password to join <strong>{workspaceName}</strong>.</p>
         </div>
-        {errors.general && (
-          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>
-        )}
+        {errors.general && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errors.general}</div>}
         <form onSubmit={handleNewUser} className="space-y-5" noValidate>
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Email</label>
-            <input type="email" value={emailParam} disabled
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
+            <input type="email" value={emailParam} disabled className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-400 bg-gray-50 cursor-not-allowed" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Full name</label>
@@ -436,13 +365,10 @@ function InviteAcceptInner() {
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Password</label>
             <div className="relative">
-              <input type={showPw ? "text" : "password"} placeholder="At least 8 characters"
-                value={password} onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
+              <input type={showPw ? "text" : "password"} placeholder="At least 8 characters" value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
                 className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.password ? "error" : "border-gray-200"}`} />
-              <button type="button" onClick={() => setShowPw((v) => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <EyeIcon show={showPw} />
-              </button>
+              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><EyeIcon show={showPw} /></button>
             </div>
             {password && (
               <div className="mt-2">
@@ -457,27 +383,19 @@ function InviteAcceptInner() {
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-1.5">Confirm password</label>
             <div className="relative">
-              <input type={showConfirm ? "text" : "password"} placeholder="Re-enter your password"
-                value={confirmPw} onChange={(e) => { setConfirmPw(e.target.value); setErrors((p) => ({ ...p, confirmPassword: undefined })); }}
+              <input type={showConfirm ? "text" : "password"} placeholder="Re-enter your password" value={confirmPw}
+                onChange={(e) => { setConfirmPw(e.target.value); setErrors((p) => ({ ...p, confirmPassword: undefined })); }}
                 className={`syntra-input w-full rounded-xl border px-4 py-3 pr-11 text-sm text-gray-900 placeholder-gray-400 ${errors.confirmPassword ? "error" : "border-gray-200"}`} />
-              <button type="button" onClick={() => setShowConfirm((v) => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <EyeIcon show={showConfirm} />
-              </button>
+              <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><EyeIcon show={showConfirm} /></button>
             </div>
             {errors.confirmPassword && <p className="text-xs text-red-500 mt-1.5">{errors.confirmPassword}</p>}
           </div>
           <button type="submit" disabled={isSubmitting}
             className="btn-violet w-full text-white font-semibold text-sm rounded-xl py-3.5 flex items-center justify-center gap-2">
-            {isSubmitting ? (
-              <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Creating account...</>
-            ) : "Accept invite & create account"}
+            {isSubmitting ? <><svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" opacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>Creating account...</> : "Accept invite & create account"}
           </button>
         </form>
-        <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); setFullName(""); setConfirmPw(""); }}
-          className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">
-          ← Back
-        </button>
+        <button onClick={() => { setMode("detecting"); setErrors({}); setPassword(""); setFullName(""); setConfirmPw(""); }} className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors mt-4">← Back</button>
       </div>
     </div>
   );
@@ -485,7 +403,11 @@ function InviteAcceptInner() {
 
 export default function InviteAcceptPage() {
   return (
-    <Suspense fallback={<InvitePageSkeleton />}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#FAFAFB" }}>
+        <div className="w-8 h-8 rounded-full border-4 border-violet-200 border-t-violet-600 animate-spin" />
+      </div>
+    }>
       <InviteAcceptInner />
     </Suspense>
   );
