@@ -87,6 +87,10 @@ function InviteAcceptInner() {
   const strength = getPasswordStrength(password);
 
   // ── Validate invite and detect if user exists ─────────────────────────────
+  // Uses Firebase Admin SDK via API route — reliable, unlike client-side
+  // sign-in detection which can't distinguish "wrong password" from
+  // "user doesn't exist" on newer Firebase SDK versions (both return
+  // auth/invalid-credential for security reasons).
   async function handleCheckEmail() {
     setIsSubmitting(true);
     setErrors({});
@@ -98,18 +102,19 @@ function InviteAcceptInner() {
         return;
       }
 
-      // Detect if account exists by attempting sign in with wrong password
-      try {
-        await signInWithEmailAndPassword(auth, emailParam, "__DETECT__");
-      } catch (err: any) {
-        if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-          setMode("existing_user");
-        } else {
-          // auth/user-not-found or anything else → new user
-          setMode("new_user");
-        }
+      const res = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailParam }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({ general: "Could not verify your email. Please try again." });
         return;
       }
+
+      setMode(data.exists ? "existing_user" : "new_user");
     } catch (err: any) {
       console.error("Check email error:", err);
       setErrors({ general: `Error: ${err.message ?? err.code}` });
