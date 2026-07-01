@@ -1,0 +1,29 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "meetings",
+      "fieldPath": "botId",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "meetings",
+      "fieldPath": "calendarEventId",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
+}

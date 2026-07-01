@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isMember(workspaceId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+    }
+    function getRole(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role;
+    }
+    function isOwnerOrAdmin(workspaceId) {
+      return isMember(workspaceId) &&
+        (getRole(workspaceId) == 'Owner' || getRole(workspaceId) == 'Admin');
+    }
+    function isOwner(workspaceId) {
+      return isMember(workspaceId) && getRole(workspaceId) == 'Owner';
+    }
+
+    match /users/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+
+      match /notifications/{notifId} {
+        allow read, write: if isAuth() && request.auth.uid == uid;
+      }
+      match /prefs/{doc} {
+        allow read, write: if isAuth() && request.auth.uid == uid;
+      }
+      match /integrations/{integrationId} {
+        allow read, write: if isAuth() && request.auth.uid == uid;
+      }
+    }
+
+    match /invites/{inviteKey} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if isMember(workspaceId);
+      allow create: if isAuth();
+      allow update: if isOwnerOrAdmin(workspaceId) || isMember(workspaceId);
+      allow delete: if isOwner(workspaceId);
+
+      match /members/{memberId} {
+        allow read: if isMember(workspaceId) || request.auth.uid == memberId;
+        allow create: if isOwnerOrAdmin(workspaceId) || request.auth.uid == memberId;
+        allow update: if isOwnerOrAdmin(workspaceId) || request.auth.uid == memberId;
+        allow delete: if isOwnerOrAdmin(workspaceId) || request.auth.uid == memberId;
+      }
+
+      match /agent/{doc} {
+        allow read: if isMember(workspaceId);
+        allow write: if isOwnerOrAdmin(workspaceId);
+      }
+
+      match /meetings/{meetingId} {
+        allow read: if isMember(workspaceId);
+        allow create: if isOwnerOrAdmin(workspaceId);
+        allow update: if isOwnerOrAdmin(workspaceId);
+        allow delete: if isOwner(workspaceId);
+
+        match /transcript/{lineId} {
+          allow read: if isMember(workspaceId);
+          allow write: if false;
+        }
+        match /decisions/{decisionId} {
+          allow read: if isMember(workspaceId);
+          allow write: if false;
+        }
+      }
+
+      match /invites/{inviteKey} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAuth();
+        allow delete: if false;
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isMember(workspaceId);
+        allow create: if isMember(workspaceId);
+        allow update: if isMember(workspaceId);
+        allow delete: if isOwnerOrAdmin(workspaceId);
+      }
+    }
+  }
+}

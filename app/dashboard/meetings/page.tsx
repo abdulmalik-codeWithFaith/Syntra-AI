@@ -312,7 +312,7 @@ export default function MeetingsPage() {
     console.log("workspaceId:", workspaceId);
   console.log("userDoc:", userDoc);
     if (!workspaceId) return;
-    const q = collection(db, `workspaces/${workspaceId}/meetings`);
+    const q = query(collection(db, `workspaces/${workspaceId}/meetings`),orderBy("scheduledAt", "desc"));
     const unsub = onSnapshot(q, (snap) => {
     console.log("meetings snap size:", snap.size);
     snap.docs.forEach(d => console.log("meeting doc:", d.id, d.data()));

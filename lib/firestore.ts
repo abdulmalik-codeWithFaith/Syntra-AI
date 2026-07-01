@@ -111,6 +111,8 @@ export interface MeetingDoc {
   transcriptGenerated: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  botId?: string;               // Recall.ai bot ID
+  recallBotStatus?: string;
 }
 
 // ─── Transcript Line ──────────────────────────────────────────────────────────

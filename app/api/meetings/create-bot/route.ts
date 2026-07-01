@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebase/admin";
 
 export async function POST(request: NextRequest) {
   try {
-    const { meetingUrl, botName } = await request.json();
+    const { meetingUrl, botName, workspaceId, meetingId } = await request.json();
 
-    if (!meetingUrl) {
+    if (!meetingUrl || !workspaceId || !meetingId) {
       return NextResponse.json(
-        { error: "meetingUrl is required" },
+        { error: "meetingUrl, workspaceId, and meetingId are required" },
         { status: 400 }
       );
     }
@@ -23,6 +24,13 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         meeting_url: meetingUrl,
         bot_name: botName || "Syntra Bot",
+        recording_config: {
+          transcript: {
+            provider: {
+              meeting_captions: {}
+            }
+          }
+        }
       }),
     });
 
@@ -35,7 +43,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ botId: data.id, status: data });
+    // Save botId to the Firestore meeting document
+    await adminDb
+      .collection("workspaces")
+      .doc(workspaceId)
+      .collection("meetings")
+      .doc(meetingId)
+      .update({
+        botId: data.id,
+        recallBotStatus: "joining_call",
+        status: "Live",
+        updatedAt: new Date(),
+      });
+
+    return NextResponse.json({ botId: data.id });
   } catch (error) {
     console.error("Error creating Recall bot:", error);
     return NextResponse.json(
