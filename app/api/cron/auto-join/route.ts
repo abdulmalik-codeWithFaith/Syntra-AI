@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const now = Date.now();
-    const in2Minutes = now + 2 * 60 * 1000;
-    const in1Minute = now + 1 * 60 * 1000;
+    const in10Minutes = now + 10 * 60 * 1000;
+    const rightNow = now - 60 * 1000; //
 
     const workspacesSnap = await adminDb.collection("workspaces").get();
     console.log("Workspaces found:", workspacesSnap.size);
@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
         const calRes = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
             new URLSearchParams({
-              timeMin: new Date(in1Minute).toISOString(),
-              timeMax: new Date(in2Minutes).toISOString(),
+              timeMin: new Date(rightNow).toISOString(),
+              timeMax: new Date(in10Minutes).toISOString(),
               singleEvents: "true",
               orderBy: "startTime",
               maxResults: "10",
@@ -170,9 +170,7 @@ export async function GET(req: NextRequest) {
               body: JSON.stringify({
                 meeting_url: meetLink,
                 bot_name: "Syntra Bot",
-                join_at: new Date(
-                  event.start?.dateTime ?? event.start?.date
-                ).toISOString(),
+                join_at: new Date(event.start?.dateTime ?? event.start?.date).toISOString(),
                 recording_config: {
                   transcript: {
                     provider: { meeting_captions: {} },
