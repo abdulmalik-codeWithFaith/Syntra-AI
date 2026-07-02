@@ -203,47 +203,48 @@ Respond ONLY with valid JSON in this exact format, no extra text:
       });
 
       // Generate and upload PDF
-      try {
-        const transcriptSnap = await meetingDoc.ref
-          .collection("transcript")
-          .orderBy("timestampMs", "asc")
-          .get();
+      // Generate and upload PDF
+let pdfUrl: string | null = null;
+try {
+  const transcriptSnap = await meetingDoc.ref
+    .collection("transcript")
+    .orderBy("timestampMs", "asc")
+    .get();
 
-        const transcriptForPDF = transcriptSnap.docs.map((d) => ({
-          speaker: d.data().speaker,
-          text: d.data().text,
-        }));
+  const transcriptForPDF = transcriptSnap.docs.map((d) => ({
+    speaker: d.data().speaker,
+    text: d.data().text,
+  }));
 
-        const pdfBytes = await generateMeetingPDF({
-          title: meetingData.title || "Meeting",
-          date: new Date().toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }),
-          platform: meetingData.platform || "Google Meet",
-          summary: extracted.summary || "",
-          tasks: extracted.tasks || [],
-          decisions: extracted.decisions || [],
-          transcript: transcriptForPDF,
-        });
+  const pdfBytes = await generateMeetingPDF({
+    title: meetingData.title || "Meeting",
+    date: new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }),
+    platform: meetingData.platform || "Google Meet",
+    summary: extracted.summary || "",
+    tasks: extracted.tasks || [],
+    decisions: extracted.decisions || [],
+    transcript: transcriptForPDF,
+  });
 
-        const fileName = `meeting-${meetingId}-${Date.now()}`;
-        let pdfUrl: string | null = null;
-        const { url, sizeKB } = await uploadPDFToCloudinary(pdfBytes, fileName);
-        pdfUrl = url;
+  const fileName = `meeting-${meetingId}-${Date.now()}`;
+  const { url, sizeKB } = await uploadPDFToCloudinary(pdfBytes, fileName);
+  pdfUrl = url;
 
-        await meetingDoc.ref.update({
-          pdfUrl: url,
-          pdfSizeKB: sizeKB,
-          updatedAt: new Date(),
-        });
+  await meetingDoc.ref.update({
+    pdfUrl: url,
+    pdfSizeKB: sizeKB,
+    updatedAt: new Date(),
+  });
 
-        console.log("PDF uploaded:", url);
-      } catch (pdfError) {
-        console.error("PDF generation failed:", pdfError);
-      }
+  console.log("PDF uploaded:", url);
+} catch (pdfError) {
+  console.error("PDF generation failed:", pdfError);
+}
 
       console.log("All data written to Firestore for meeting:", meetingId);
       // Write notifications to all workspace members
