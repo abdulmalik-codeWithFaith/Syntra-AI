@@ -270,7 +270,7 @@ export default function ChatPage() {
         content: m.text,
       }));
 
-      const systemPrompt = `You are Syntra, an AI meeting co-worker. You have full context on the user's workspace meetings, tasks, and decisions. Answer questions clearly and concisely based on the workspace data provided. If the data doesn't contain the answer, say so honestly. And remove the asterisk
+      const systemPrompt = `You are Syntra, an AI meeting co-worker. You have full context on the user's workspace meetings, tasks, and decisions. Answer questions clearly and concisely based on the workspace data provided. If the data doesn't contain the answer, say so honestly.
 
 ${context}
 

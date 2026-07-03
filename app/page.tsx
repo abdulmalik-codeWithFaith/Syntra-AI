@@ -128,7 +128,7 @@ const FEATURES: FeatureCardProps[] = [
       </svg>
     ),
     title: "Voice interaction",
-    description: 'Say "Syntra" mid-meeting to ask a question. It also speaks up proactively when a task has no owner or no deadline.',
+    description: 'Say "Syntra" mid-meeting to ask a question. Ask Syntra questions during meetings using voice.',
   },
   {
     icon: (
@@ -172,8 +172,8 @@ const FEATURES: FeatureCardProps[] = [
         <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm4.24 16L12 15.45 7.77 18l1.12-4.81-3.73-3.23 4.92-.42L12 5l1.92 4.53 4.92.42-3.73 3.23L16.23 18z" />
       </svg>
     ),
-    title: "Powered by Gemini AI",
-    description: "Google Gemini drives extraction, summarization, and voice. It understands conversation context — not just keywords.",
+    title: "AI-Powered understanding",
+    description: "Syntra understands conversations, identifies action items, and generates structured meetings outcomes automatically.",
   },
   {
     icon: (
@@ -197,7 +197,7 @@ const STEPS: StepItem[] = [
   },
   {
     title: "AI extracts what matters",
-    desc: "Tasks, owners, deadlines, and decisions are pulled from the conversation using Gemini AI. If something's missing, Syntra asks.",
+    desc: "Tasks, owners, deadlines, and decisions are pulled from the conversation. If something's missing, Syntra asks.",
   },
   {
     title: "Dashboard is ready after",
@@ -212,12 +212,12 @@ const PRICING_PLANS: PricingPlan[] = [
     period: "forever",
     description: "For individuals who want to stop forgetting what was said.",
     features: [
-      "5 meetings per month",
-      "AI task extraction",
+      "3 AI meetings",
+      "Up to 1 hour per meeting",
       "Meeting summaries",
-      "1 workspace",
+      "Task Extraction",
       "PDF export",
-      "7-day transcript history",
+      "7-day history",
     ],
     cta: "Start free",
     highlighted: false,
@@ -228,14 +228,16 @@ const PRICING_PLANS: PricingPlan[] = [
     period: "per month",
     description: "For professionals who run meetings and need accountability.",
     features: [
-      "Unlimited meetings",
-      "Voice interaction (Syntra speaks)",
+      "20 AI meeting hours/month",
+      "Up to 2 hours per meeting",
       "AI task extraction + decisions",
-      "3 workspaces",
-      "PDF reports + cloud storage",
-      "Calendar auto-join",
+      "Calender auto-join",
+      "AI summaries",
+      "Decision tracking",
+      "Task Extraction",
       "Email reminders",
       "90-day history",
+      "Up to 3 workspace"
     ],
     cta: "Get Pro",
     highlighted: true,
@@ -246,14 +248,13 @@ const PRICING_PLANS: PricingPlan[] = [
     period: "per month",
     description: "For teams that need shared accountability across all meetings.",
     features: [
-      "Everything in Pro",
+      "75 AI meeting hours/month",
       "Unlimited team members",
-      "Shared task dashboard",
-      "Team-level reporting",
-      "Zoom + Meet + Teams",
-      "Priority support",
+      "Shared dashboard",
+      "Team analytics",
       "Unlimited history",
-      "Custom agent name & voice",
+      "Priority support",
+      "Custom AI agent",
     ],
     cta: "Get Team",
     highlighted: false,
@@ -264,14 +265,14 @@ const TEAM_MEMBERS: TeamMember[] = [
   {
     name: "Abdulrosheed Abdulmalik",
     role: "Founder & Developer",
-    bio: "Former engineering lead at a Fortune 500 company. Built Syntra after losing track of action items in a 2-hour planning meeting.",
+    bio: "Fullstack developer building AI tools that help teams collaborate more effectively.",
     initials: "AA",
     color: "#7C3AED",
   },
   {
     name: "Imran Musa",
     role: "CEO & Product designer",
-    bio: "Product designer focused on making AI feel human. Previously designed collaboration tools used by 2M+ users.",
+    bio: "Product designer focused on creating intuitive AI-powered experiences for modern teams.",
     initials: "IM",
     color: "#DB2777",
   },
@@ -292,10 +293,10 @@ const TEAM_MEMBERS: TeamMember[] = [
 ];
 
 const STATS: StatItem[] = [
-  { value: "0 min", label: "Setup time to first meeting" },
-  { value: "100%", label: "Meetings captured automatically" },
+  { value: "<5 min", label: "Setup" },
+  { value: "Automatic", label: "Meetings captured" },
   { value: "<30s", label: "Summary after meeting ends" },
-  { value: "0", label: "Tasks that fall through the cracks" },
+  { value: "Never miss", label: "AI tracks every assigned task" },
 ];
 
 const FAQS: FAQItem[] = [
@@ -313,7 +314,7 @@ const FAQS: FAQItem[] = [
   },
   {
     question: "What AI model does Syntra use?",
-    answer: "Syntra uses Google Gemini for meeting extraction, summarization, and voice responses. It understands context and conversation flow — not just keywords.",
+    answer: "Syntra uses AI-Powered for meeting extraction, summarization, and voice responses. It understands context and conversation flow — not just keywords.",
   },
   {
     question: "Can I use Syntra without staying in the meeting?",
@@ -656,12 +657,12 @@ export default function SyntraLanding() {
           </h1>
 
           <p className="hero-sub text-gray-500 text-lg leading-relaxed max-w-xl mx-auto mb-10">
-            Syntra joins your meetings, listens to every word, and turns conversations into tasks, decisions, and reports — automatically.
+            Syntra joins your meetings, understand every conversation, and automatically turns discussions into tasks, decisions, and actionable reports.
           </p>
 
           <div className="hero-cta flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="/signup">
-              <button className="btn-violet px-7 py-3.5 rounded-xl font-semibold text-base">Start 3 Meetings for free</button>
+              <button className="btn-violet px-7 py-3.5 rounded-xl font-semibold text-base">Start Your Free Trial</button>
             </a>
             <button className="btn-outline px-7 py-3.5 rounded-xl font-medium text-base flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="#7C3AED"><path d="M8 5v14l11-7z" /></svg>
@@ -718,7 +719,7 @@ export default function SyntraLanding() {
               style={{ background: "#F5F3FF", color: "#7C3AED" }}>
               The flow
             </span>
-            <h2 className="section-title text-gray-900 mb-4">Set it up once. It works forever.</h2>
+            <h2 className="section-title text-gray-900 mb-4">Set it up once. Syntra handles every meetings automatically.</h2>
             <p className="text-gray-500 max-w-lg mx-auto text-sm leading-relaxed">
               Syntra runs autonomously. You don&apos;t stay in the app. You don&apos;t press start. You just show up to your meeting.
             </p>
@@ -789,7 +790,7 @@ export default function SyntraLanding() {
             <PricingCard key={plan.name} plan={plan} />
           ))}
         </div>
-        <p className="text-center text-gray-400 text-xs mt-8">All plans include a 14-day free trial of Pro features · No credit card required</p>
+        <p className="text-center text-gray-400 text-xs mt-8">Need more AI meetings hours? Purchase additional hours anytime.</p>
       </section>
 
       {/* ── TEAM ── */}
