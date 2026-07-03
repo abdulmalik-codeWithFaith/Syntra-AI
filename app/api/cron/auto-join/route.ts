@@ -114,12 +114,10 @@ export async function GET(req: NextRequest) {
           }
 
           const existingSnap = await adminDb
-            .collection("workspaces")
-            .doc(workspaceId)
-            .collection("meetings")
-            .where("calendarEventId", "==", event.id)
-            .limit(1)
-            .get();
+          .collectionGroup("meetings")
+          .where("calendarEventId", "==", event.id)
+          .limit(1)
+          .get();
 
           if (!existingSnap.empty) {
             console.log("Bot already scheduled for event:", event.id);
