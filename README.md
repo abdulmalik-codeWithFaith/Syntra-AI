@@ -1,38 +1,159 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# syntra AI
 
-## Getting Started
+> **Your AI meeting co-worker. Turns conversations into action.**
 
-First, run the development server:
+Syntra AI is an AI-powered meeting co-worker that automatically joins your meetings, understands conversations, extracts action items, tracks decisions, and generates structured reports—so your team can focus on execution instead of note-taking.
+
+## ✨ Features
+
+* 🤖 AI meeting participant
+* 🎙️ Real-time meeting transcription
+* ✅ Automatic task extraction
+* 📌 Decision tracking
+* 📄 AI-generated meeting summaries
+* 📥 PDF report generation
+* 📅 Google Calendar integration
+* 🎥 Google Meet integration
+* 👥 Team workspaces
+* 🔔 Task and meeting reminders
+* 📊 Meeting history and analytics
+
+## 🚀 Tech Stack
+
+### Frontend
+
+* Next.js
+* TypeScript
+* Tailwind CSS
+
+### Backend
+
+* Firebase Authentication
+* Cloud Firestore
+* Firebase Storage
+* Firebase Cloud Functions
+
+### AI & Integrations
+
+* Google Gemini API
+* Recall.ai
+* Google Calendar API
+* Google Meet Integration
+* NodeMailer
+
+## 📂 Project Structure
+
+```text
+app/
+components/
+hooks/
+lib/
+services/
+types/
+public/
+```
+
+## ⚙️ Getting Started
+
+### Clone the repository
+
+```bash
+git clone https://github.com/yourusername/syntra-ai.git
+```
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Configure environment variables
+
+Create a `.env.local` file and add your configuration:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+GEMINI_API_KEY=
+RECALL_API_KEY=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+EMAIL_USER=
+EMAIL_PASS=
+```
+
+### Start the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🛣️ Roadmap
 
-To learn more about Next.js, take a look at the following resources:
+* [x] Authentication
+* [x] Team workspaces
+* [x] Member invitations
+* [x] Dashboard
+* [x] Meeting management
+* [x] Google Calendar integration
+* [x] Google Meet integration
+* [ ] Recall.ai meeting bot
+* [ ] AI task extraction
+* [ ] Meeting summaries
+* [ ] PDF reports
+* [ ] Email reminders
+* [ ] Team analytics
+* [ ] Voice interaction
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🔒 Security
 
-## Deploy on Vercel
+Syntra AI is designed with security in mind.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+* Secure Firebase Authentication
+* Google OAuth integration
+* Workspace-based access control
+* Encrypted communication
+* Role-based permissions
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
- 
-# Syntra AI
+---
+
+## 🤝 Contributing
+
+Contributions, suggestions, and feedback are welcome. Feel free to open an issue or submit a pull request.
+
+---
+
+## 👨‍💻 Founder
+
+**Abdulrosheed Abdulmalik**
+
+Founder & Full-Stack Developer
+
+Building AI-powered tools that help teams collaborate, automate workflows, and turn meetings into meaningful execution.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+Made with ❤️ by **Abdulrosheed Abdulmalik**.
