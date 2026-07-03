@@ -270,26 +270,34 @@ export default function ChatPage() {
         content: m.text,
       }));
 
-      const systemPrompt = `You are Syntra, an AI meeting co-worker. You have full context on the user's workspace meetings, tasks, and decisions. Answer questions clearly and concisely based on the workspace data provided. If the data doesn't contain the answer, say so honestly.
+      const systemPrompt = `You are Syntra, an AI meeting co-worker. You have full context on the user's workspace meetings, tasks, and decisions. Answer questions clearly and concisely based on the workspace data provided. If the data doesn't contain the answer, say so honestly. And remove the asterisk
 
 ${context}
 
 Current user: ${userName}
 Workspace ID: ${workspaceId}`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: history,
-        }),
-      });
+      const res = await fetch(
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: `${systemPrompt}\n\nConversation history:\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\nUser: ${text.trim()}`,
+            },
+          ],
+        },
+      ],
+    }),
+  }
+);
 
-      const data = await res.json();
-      const responseText = data.content?.[0]?.text ?? "I'm sorry, I couldn't generate a response. Please try again.";
+const data = await res.json();
+const responseText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "I'm sorry, I couldn't generate a response. Please try again.";
 
       const agentMsg: ChatMessage = {
         id: `a${Date.now()}`, role: "agent",
