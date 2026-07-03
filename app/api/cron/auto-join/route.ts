@@ -113,11 +113,7 @@ export async function GET(req: NextRequest) {
             continue;
           }
 
-          const existingSnap = await adminDb
-          .collectionGroup("meetings")
-          .where("calendarEventId", "==", event.id)
-          .limit(1)
-          .get();
+          git push
 
           if (!existingSnap.empty) {
             console.log("Bot already scheduled for event:", event.id);
