@@ -26,22 +26,22 @@ const TEAM: TeamMember[] = [
     name: "Abdulrosheed Abdulmalik",
     role: "Founder & Lead Developer",
     bio: "Abdulrosheed built Syntra AI from the ground up — architecture, infrastructure, AI pipeline, and every line of code. Frustrated by meetings that ended with no record of what was decided or who owned what, he set out to build the tool he always wished existed. He believes software should remove friction, not create it.",
-    initials: "AA",
+    initials: "/malik.jpg",
     gradient: "linear-gradient(135deg, #2563EB, #7C3AED)",
     links: [
-      { label: "GitHub", href: "https://github.com" },
-      { label: "LinkedIn", href: "https://linkedin.com" },
+      { label: "LinkedIn", href: "https://www.linkedin.com/in/abdulmalik-abdulrosheed-35780541b?utm_source=share_via&utm_content=profile&utm_medium=member_android" },
+      { label: "Twitter", href: "https://x.com/broskiprop94216" },
     ],
   },
   {
     name: "Imran Musa",
     role: "CEO & Product Design",
     bio: "Imran leads Syntra AI's product vision and design. He shapes how Syntra looks, how it feels, and where it goes next. With a sharp eye for what makes software feel human, he bridges the gap between powerful AI technology and the people who use it every day in their meetings and workflows.",
-    initials: "IM",
+    initials: "/imran.jpg",
     gradient: "linear-gradient(135deg, #7C3AED, #DB2777)",
     links: [
-      { label: "LinkedIn", href: "https://linkedin.com" },
-      { label: "Twitter", href: "https://twitter.com" },
+      { label: "LinkedIn", href: "https://www.linkedin.com/in/imran-musa-/" },
+      { label: "Twitter", href: "https://x.com/haajeth_" },
     ],
   },
 ];
@@ -282,9 +282,9 @@ export default function AboutPage() {
                 <div className="flex items-center gap-4 mb-5">
                   <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-                    style={{ background: member.gradient }}
+                    // style={{ background: member.gradient }}
                   >
-                    {member.initials}
+                    <img src={member.initials} className="rounded-4xl" alt="profile-pictire"/>
                   </div>
                   <div>
                     <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1.1rem", color: "#111827" }}>
