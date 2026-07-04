@@ -125,64 +125,58 @@ function InviteAcceptInner() {
 
   // ── Core: add authenticated user to workspace ─────────────────────────────
   // Called after auth succeeds. Does NOT query members collection.
+ 
   async function addToWorkspace(uid: string, name: string, inviteData: any) {
-    // 1. Delete the placeholder member doc (created with inviteKey as ID)
-    //    We do this with the authenticated user — rules allow delete if uid == memberId
-    //    but the placeholder ID is inviteKey, not uid.
-    //    So we do this via the invite API route instead — just skip it here
-    //    and let the placeholder doc be overwritten by the real one below.
+  // 1. Delete placeholder member doc FIRST (via API since rules block client)
+  await fetch("/api/team/remove-placeholder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ workspaceId, placeholderMemberId }),
+  });
 
-    // 2. Write real member doc using the user's actual UID
-    await setDoc(doc(db, `workspaces/${workspaceId}/members`, uid), {
+  // 2. Write real member doc using the user's actual UID
+  await setDoc(doc(db, `workspaces/${workspaceId}/members`, uid), {
+    uid,
+    email: emailParam,
+    fullName: name,
+    photoURL: null,
+    role: inviteData.role ?? "Member",
+    status: "Active",
+    joinedAt: serverTimestamp(),
+    invitedAt: inviteData.createdAt ?? serverTimestamp(),
+  });
+
+  // 3. Update user doc
+  const userRef = doc(db, "users", uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    await updateDoc(userRef, {
+      workspaceIds: arrayUnion(workspaceId),
+      currentWorkspaceId: workspaceId,
+      onboardingComplete: true,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    await setDoc(userRef, {
       uid,
       email: emailParam,
       fullName: name,
       photoURL: null,
-      role: inviteData.role ?? "Member",
-      status: "Active",
-      joinedAt: serverTimestamp(),
-      invitedAt: inviteData.createdAt ?? serverTimestamp(),
+      workspaceIds: [workspaceId],
+      currentWorkspaceId: workspaceId,
+      onboardingComplete: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
-
-    // 3. Update user doc — now user IS a member so this write is allowed
-    const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      await updateDoc(userRef, {
-        workspaceIds: arrayUnion(workspaceId),
-        currentWorkspaceId: workspaceId,
-        onboardingComplete: true,
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      await setDoc(userRef, {
-        uid,
-        email: emailParam,
-        fullName: name,
-        photoURL: null,
-        workspaceIds: [workspaceId],
-        currentWorkspaceId: workspaceId,
-        onboardingComplete: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    // 4. Mark invite consumed (public update allowed)
-    await setDoc(doc(db, "invites", inviteKey), {
-      consumed: true,
-      acceptedAt: serverTimestamp(),
-      acceptedBy: uid,
-    }, { merge: true });
-
-    // 5. Clean up placeholder member doc via API (server-side, bypasses rules)
-    fetch("/api/team/remove-placeholder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId, placeholderMemberId }),
-    }).catch(() => {}); // fire and forget
   }
 
+  // 4. Mark invite consumed
+  await setDoc(doc(db, "invites", inviteKey), {
+    consumed: true,
+    acceptedAt: serverTimestamp(),
+    acceptedBy: uid,
+  }, { merge: true });
+}
   // ── Existing user: log in to accept ──────────────────────────────────────
   async function handleExistingUser(e: FormEvent) {
     e.preventDefault();

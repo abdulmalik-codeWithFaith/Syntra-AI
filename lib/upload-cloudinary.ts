@@ -14,19 +14,23 @@ export async function uploadPDFToCloudinary(
     const buffer = Buffer.from(pdfBytes);
     const sizeKB = Math.round(buffer.length / 1024);
 
-    const uploadStream = cloudinary.uploader.upload_stream(
+    // Convert to base64 data URI and upload as raw
+    const base64 = buffer.toString("base64");
+    const dataUri = `data:application/pdf;base64,${base64}`;
+
+    cloudinary.uploader.upload(
+      dataUri,
       {
         resource_type: "raw",
         folder: "syntra-reports",
         public_id: fileName,
         format: "pdf",
+        access_mode: "public",
       },
       (error, result) => {
         if (error || !result) return reject(error);
         resolve({ url: result.secure_url, sizeKB });
       }
     );
-
-    uploadStream.end(buffer);
   });
 }

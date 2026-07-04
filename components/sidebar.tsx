@@ -2,17 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { collection, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
-import type { WorkspaceDoc } from "@/lib/firestore";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import type { WorkspaceDoc, MemberRole } from "@/lib/firestore";
 
 interface NavItem {
   id: string;
   label: string;
   href: string;
   icon: React.ReactNode;
+  restrictedTo?: MemberRole[]; // if set, only these roles can see it
 }
 
 interface SidebarProps {
@@ -48,9 +47,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: "reports",      label: "Reports",      href: "/dashboard/reports",      icon: Icon.reports      },
   { id: "chat",         label: "Chat",         href: "/dashboard/chat",         icon: Icon.chat         },
   { id: "team",         label: "Team",         href: "/dashboard/team",         icon: Icon.team         },
-  { id: "integrations", label: "Integrations", href: "/dashboard/integrations", icon: Icon.integrations },
-  { id: "agent",        label: "Agent",        href: "/dashboard/agent",        icon: Icon.agent        },
-  { id: "settings",     label: "Settings",     href: "/dashboard/settings",     icon: Icon.settings     },
+  { id: "integrations", label: "Integrations", href: "/dashboard/integrations", icon: Icon.integrations, restrictedTo: ["Owner", "Admin"] },
+  { id: "agent",        label: "Agent",        href: "/dashboard/agent",        icon: Icon.agent,        restrictedTo: ["Owner", "Admin"] },
+  { id: "settings",     label: "Settings",     href: "/dashboard/settings",     icon: Icon.settings,     restrictedTo: ["Owner", "Admin"] },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -211,6 +210,23 @@ function WorkspaceSwitcher({ collapsed }: { collapsed: boolean }) {
 function NavContent({ activeId, collapsed, onClose }: {
   activeId: string; collapsed: boolean; onClose?: () => void;
 }) {
+  const { user, userDoc } = useAuth();
+  const [role, setRole] = useState<MemberRole | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !userDoc?.currentWorkspaceId) return;
+    getDoc(doc(db, `workspaces/${userDoc.currentWorkspaceId}/members/${user.uid}`))
+      .then((snap) => {
+        if (snap.exists()) setRole(snap.data().role as MemberRole);
+      });
+  }, [user?.uid, userDoc?.currentWorkspaceId]);
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (!item.restrictedTo) return true; // no restriction, everyone sees it
+    if (!role) return false; // role not loaded yet, hide restricted items
+    return item.restrictedTo.includes(role);
+  });
+
   return (
     <>
       {/* Logo */}
@@ -243,7 +259,7 @@ function NavContent({ activeId, collapsed, onClose }: {
 
       {/* Nav links */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto pb-2">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = activeId === item.id;
           return (
             <a key={item.id} href={item.href} title={collapsed ? item.label : undefined}
@@ -277,6 +293,19 @@ function NavContent({ activeId, collapsed, onClose }: {
           {!collapsed && <span>Notifications</span>}
         </a>
       </div>
+
+      {/* Show account settings link for Members */}
+      {role === "Member" && (
+        <div className="px-3 pb-3 pt-1">
+          <a href="/dashboard/settings"
+            onClick={onClose}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+            style={{ justifyContent: collapsed ? "center" : "flex-start" }}>
+            <span className="flex-shrink-0">{Icon.settings}</span>
+            {!collapsed && <span>Account</span>}
+          </a>
+        </div>
+      )}
     </>
   );
 }

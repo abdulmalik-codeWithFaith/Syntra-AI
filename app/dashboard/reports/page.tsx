@@ -7,12 +7,8 @@ import { collection, query, where, orderBy, onSnapshot } from "firebase/firestor
 import { db } from "@/lib/firebase/client";
 import type { MeetingDoc, MeetingPlatform } from "@/lib/firestore";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type FilterTab = "All" | "This week" | "This month" | "Older";
 type ViewMode  = "grid" | "list";
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
 
 function PlatformIcon({ platform }: { platform: MeetingPlatform }) {
   if (platform === "Google Meet") return (
@@ -37,8 +33,6 @@ function PlatformIcon({ platform }: { platform: MeetingPlatform }) {
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function initialsFrom(name: string): string {
   const parts = name.trim().split(" ");
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -51,12 +45,6 @@ function formatDate(ts: any): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function getDateISO(ts: any): string {
-  if (!ts) return "";
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toISOString().split("T")[0];
-}
-
 function bucketMeeting(ts: any): "This week" | "This month" | "Older" {
   if (!ts) return "Older";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -66,8 +54,6 @@ function bucketMeeting(ts: any): "This week" | "This month" | "Older" {
   if (diffDays <= 30) return "This month";
   return "Older";
 }
-
-// ─── Topbar ───────────────────────────────────────────────────────────────────
 
 function Topbar({ search, onSearch, userName, userInitials }: {
   search: string; onSearch: (v: string) => void;
@@ -98,10 +84,9 @@ function Topbar({ search, onSearch, userName, userInitials }: {
   );
 }
 
-// ─── Report Card (grid) ───────────────────────────────────────────────────────
-
-function ReportCard({ meeting, selected, onToggleSelect }: {
+function ReportCard({ meeting, selected, onToggleSelect, onDownload }: {
   meeting: MeetingDoc; selected: boolean; onToggleSelect: () => void;
+  onDownload: (url: string, title: string) => void;
 }) {
   return (
     <div className="rounded-2xl border bg-white p-5 transition-all duration-150 hover:shadow-md relative"
@@ -147,11 +132,12 @@ function ReportCard({ meeting, selected, onToggleSelect }: {
           View
         </a>
         {meeting.pdfUrl ? (
-          <a href={meeting.pdfUrl} target="_blank" rel="noopener noreferrer"
+          <button
+            onClick={() => onDownload(meeting.pdfUrl!, meeting.title)}
             className="flex-1 text-center text-xs font-semibold rounded-lg py-2 text-white"
             style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
             Download
-          </a>
+          </button>
         ) : (
           <button disabled
             className="flex-1 text-center text-xs font-semibold rounded-lg py-2 text-gray-400 bg-gray-100 cursor-not-allowed">
@@ -163,10 +149,9 @@ function ReportCard({ meeting, selected, onToggleSelect }: {
   );
 }
 
-// ─── Report Row (list) ────────────────────────────────────────────────────────
-
-function ReportRow({ meeting, selected, onToggleSelect }: {
+function ReportRow({ meeting, selected, onToggleSelect, onDownload }: {
   meeting: MeetingDoc; selected: boolean; onToggleSelect: () => void;
+  onDownload: (url: string, title: string) => void;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border bg-white hover:shadow-sm transition-all duration-150 w-full min-w-0"
@@ -218,22 +203,21 @@ function ReportRow({ meeting, selected, onToggleSelect }: {
       </a>
 
       {meeting.pdfUrl ? (
-        <a href={meeting.pdfUrl} target="_blank" rel="noopener noreferrer"
+        <button
+          onClick={() => onDownload(meeting.pdfUrl!, meeting.title)}
           className="text-xs font-semibold rounded-lg px-3 py-2 text-white flex-shrink-0 flex items-center gap-1"
           style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           <span className="hidden sm:inline">PDF</span>
-        </a>
+        </button>
       ) : (
         <span className="text-xs text-gray-300 flex-shrink-0 hidden sm:block">No PDF</span>
       )}
     </div>
   );
 }
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
 
 function EmptyState() {
   return (
@@ -249,22 +233,20 @@ function EmptyState() {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function ReportsPage() {
   const { user, userDoc } = useAuth();
-  const [meetings, setMeetings]     = useState<MeetingDoc[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [meetings, setMeetings]         = useState<MeetingDoc[]>([]);
+  const [loading, setLoading]           = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
-  const [search, setSearch]         = useState("");
-  const [viewMode, setViewMode]     = useState<ViewMode>("grid");
-  const [selected, setSelected]     = useState<Set<string>>(new Set());
+  const [search, setSearch]             = useState("");
+  const [viewMode, setViewMode]         = useState<ViewMode>("grid");
+  const [selected, setSelected]         = useState<Set<string>>(new Set());
+  const [downloading, setDownloading]   = useState(false);
 
-  const workspaceId = userDoc?.currentWorkspaceId ?? "";
-  const userName = user?.displayName ?? user?.email ?? "User";
+  const workspaceId  = userDoc?.currentWorkspaceId ?? "";
+  const userName     = user?.displayName ?? user?.email ?? "User";
   const userInitials = initialsFrom(userName);
 
-  // Only load completed meetings that have a PDF
   useEffect(() => {
     if (!workspaceId) return;
     const q = query(
@@ -288,6 +270,42 @@ export default function ReportsPage() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  async function handleDownload(pdfUrl: string, title: string) {
+  try {
+    const proxyUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}`;
+    const response = await fetch(proxyUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.replace(/\s+/g, "-")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error("Download failed:", err);
+  }
+}
+
+  async function handleDownloadSelected() {
+    setDownloading(true);
+    const toDownload = meetings.filter((m) => selected.has(m.id) && m.pdfUrl);
+    for (const m of toDownload) {
+      await handleDownload(m.pdfUrl!, m.title);
+    }
+    setDownloading(false);
+  }
+
+  async function handleDownloadAll() {
+    setDownloading(true);
+    const withPdfs = meetings.filter((m) => m.pdfUrl);
+    for (const m of withPdfs) {
+      await handleDownload(m.pdfUrl!, m.title);
+    }
+    setDownloading(false);
   }
 
   const filtered = useMemo(() => {
@@ -360,20 +378,26 @@ export default function ReportsPage() {
             </div>
 
             {selected.size > 0 ? (
-              <button className="text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap"
+              <button
+                onClick={handleDownloadSelected}
+                disabled={downloading}
+                className="text-white text-sm font-semibold rounded-xl px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap disabled:opacity-60"
                 style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Download {selected.size}
+                {downloading ? "Downloading..." : `Download ${selected.size}`}
               </button>
             ) : (
-              <button className="text-sm font-semibold rounded-xl px-4 py-2.5 bg-white flex items-center gap-2 whitespace-nowrap"
+              <button
+                onClick={handleDownloadAll}
+                disabled={downloading || withPDF === 0}
+                className="text-sm font-semibold rounded-xl px-4 py-2.5 bg-white flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
                 style={{ border: "1.5px solid rgba(124,58,237,0.3)", color: "#7C3AED" }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Download all
+                {downloading ? "Downloading..." : "Download all"}
               </button>
             )}
           </div>
@@ -412,13 +436,25 @@ export default function ReportsPage() {
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((m) => (
-                <ReportCard key={m.id} meeting={m} selected={selected.has(m.id)} onToggleSelect={() => toggleSelect(m.id)} />
+                <ReportCard
+                  key={m.id}
+                  meeting={m}
+                  selected={selected.has(m.id)}
+                  onToggleSelect={() => toggleSelect(m.id)}
+                  onDownload={handleDownload}
+                />
               ))}
             </div>
           ) : (
             <div className="space-y-2.5">
               {filtered.map((m) => (
-                <ReportRow key={m.id} meeting={m} selected={selected.has(m.id)} onToggleSelect={() => toggleSelect(m.id)} />
+                <ReportRow
+                  key={m.id}
+                  meeting={m}
+                  selected={selected.has(m.id)}
+                  onToggleSelect={() => toggleSelect(m.id)}
+                  onDownload={handleDownload}
+                />
               ))}
             </div>
           )}

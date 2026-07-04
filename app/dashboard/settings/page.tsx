@@ -504,6 +504,7 @@ function DangerTab({ workspaceId, uid }: { workspaceId: string; uid: string }) {
 export default function SettingsPage() {
   const { user, userDoc } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
+  const [role, setRole] = useState<string | null>(null);
 
   const workspaceId = userDoc?.currentWorkspaceId ?? "";
   const uid         = user?.uid ?? "";
@@ -513,6 +514,29 @@ export default function SettingsPage() {
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   })();
+
+  // Fetch role
+  useEffect(() => {
+    if (!uid || !workspaceId) return;
+    getDoc(doc(db, `workspaces/${workspaceId}/members/${uid}`)).then((snap) => {
+      if (snap.exists()) setRole(snap.data().role);
+    });
+  }, [uid, workspaceId]);
+
+  // Filter tabs based on role
+  const isMember = role === "Member";
+
+  const visibleTabs = TABS.filter((tab) => {
+    if (isMember) return tab.id === "account"; // Members only see Account
+    return true; // Owners and Admins see all
+  });
+
+  // If member lands on a restricted tab, redirect to account
+  useEffect(() => {
+    if (isMember && activeTab !== "account") {
+      setActiveTab("account");
+    }
+  }, [isMember, activeTab]);
 
   return (
     <div className="min-h-screen flex" style={{ background: "#FAFAFB", fontFamily: "'Inter', sans-serif" }}>
@@ -538,7 +562,7 @@ export default function SettingsPage() {
         <div className="flex gap-7 items-start">
           <aside className="w-48 flex-shrink-0 sticky top-6">
             <nav className="space-y-0.5">
-              {TABS.map((tab) => {
+              {visibleTabs.map((tab) => {
                 const isActive = activeTab === tab.id;
                 const isDanger = tab.id === "danger";
                 return (
