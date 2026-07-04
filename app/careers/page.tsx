@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -304,14 +305,7 @@ export default function CareersPage() {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "scrolled" : ""}`}>
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1.1rem", color: "#111827" }}>Syntra</span>
+            <Image src="/logo.png" alt="logo" width={200} height={200}/>
           </a>
           <div className="flex items-center gap-3">
             <a href="/login" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">Log in</a>
@@ -494,13 +488,7 @@ export default function CareersPage() {
       <footer className="border-t border-gray-100 py-10 px-6 bg-white">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: "#111827" }}>Syntra AI</span>
+            <Image src="/logo.png" alt="logo" width={200} height={200}/>
             <span className="text-gray-300 text-sm ml-1">© {new Date().getFullYear()}</span>
           </div>
           <div className="flex items-center gap-6">

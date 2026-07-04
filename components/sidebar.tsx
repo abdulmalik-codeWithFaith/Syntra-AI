@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { collection, getDocs, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import type { WorkspaceDoc, MemberRole } from "@/lib/firestore";
+import Image from "next/image";
 
 interface NavItem {
   id: string;
@@ -232,18 +233,11 @@ function NavContent({ activeId, collapsed, onClose }: {
       {/* Logo */}
       <div className="flex items-center gap-2.5 flex-shrink-0"
         style={{ padding: collapsed ? "20px 0 20px" : "20px 20px 20px", justifyContent: collapsed ? "center" : "flex-start" }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #2563EB, #7C3AED)" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 1l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-            <path d="M7 23l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-          </svg>
-        </div>
         {!collapsed && (
           <>
             <div className="flex-1 min-w-0">
-              <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1rem", color: "#111827", letterSpacing: "0.02em" }}>SYNTRA</p>
-              <p className="text-[9px] tracking-[0.18em] uppercase" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</p>
+              <Image src="/logo.png" alt="logo" width={200} height={200}/>
+              {/* <p className="text-[9px] tracking-[0.18em] uppercase" style={{ color: "#9CA3AF" }}>AI Meeting Co-worker</p> */}
             </div>
             {onClose && (
               <button onClick={onClose} className="ml-auto p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">

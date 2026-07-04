@@ -1,5 +1,6 @@
 // components/Footer.tsx
 
+import Image from "next/image";
 import Link from "next/link";
 
 const footerLinks = [
@@ -34,48 +35,16 @@ const footerLinks = [
 
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-100 bg-white px-6 py-12">
+    <footer className="border-t border-gray-100 bg-[#DDD6FE] px-6 py-12">
       <div className="mx-auto max-w-6xl">
         <div className="mb-10 flex flex-col justify-between gap-10 md:flex-row">
           {/* Logo & Description */}
           <div className="max-w-xs">
             <Link href="/" className="mb-3 flex items-center gap-2">
-              <div
-                className="flex h-7 w-7 items-center justify-center rounded-lg"
-                style={{
-                  background:
-                    "linear-gradient(135deg, #2563EB, #7C3AED)",
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17 1l4 4-4 4" />
-                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                  <path d="M7 23l-4-4 4-4" />
-                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-                </svg>
-              </div>
-
-              <span
-                style={{
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 700,
-                  color: "#111827",
-                }}
-              >
-                Syntra AI
-              </span>
+              <Image src="/logo.png" width={200} height={200} alt="logo"/>
             </Link>
 
-            <p className="text-sm leading-relaxed text-gray-400">
+            <p className="text-sm leading-relaxed text-gray-500">
               Your AI meeting co-worker. Turns conversations into action.
             </p>
           </div>
@@ -93,7 +62,7 @@ export default function Footer() {
                     <li key={link.label}>
                       <Link
                         href={link.href}
-                        className="text-sm text-gray-400 transition-colors hover:text-gray-700"
+                        className="text-sm text-gray-500 transition-colors hover:text-gray-700"
                       >
                         {link.label}
                       </Link>
@@ -107,11 +76,11 @@ export default function Footer() {
 
         {/* Bottom */}
         <div className="flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-6 md:flex-row">
-          <p className="text-xs text-gray-300">
+          <p className="text-xs text-gray-500">
             © {new Date().getFullYear()} Syntra AI. All rights reserved.
           </p>
 
-          <div className="flex items-center gap-2 font-mono text-xs text-gray-300">
+          <div className="flex items-center gap-2 font-mono text-xs text-gray-500">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
             All systems operational
           </div>
