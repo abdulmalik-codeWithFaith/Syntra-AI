@@ -1,1 +1,45 @@
 @import "tailwindcss";
+:root {
+  --surface-0: #f5f5f4;
+  --surface-1: #ffffff;
+  --surface-2: #fafafa;
+  --surface-3: #ffffff;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --text-disabled: #d1d5db;
+
+  --text-accent: #2563eb;
+  --text-success: #059669;
+  --text-warning: #b45309;
+  --text-danger: #dc2626;
+  --text-pro: #7c3aed;
+
+  --fill-accent: #2563eb;
+  --fill-accent-hover: #1d4ed8;
+  --fill-pro: #7c3aed;
+  --fill-primary: #111827;
+  --on-accent: #ffffff;
+  --on-primary: #ffffff;
+  --on-pro: #ffffff;
+
+  --bg-accent: #eff6ff;
+  --bg-success: #ecfdf5;
+  --bg-warning: #fef3c7;
+  --bg-danger: #fef2f2;
+  --bg-pro: #f5f3ff;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --border-stronger: rgba(0, 0, 0, 0.25);
+  --border-accent: #bfdbfe;
+  --border-danger: #fecaca;
+  --border-success: #a7f3d0;
+  --border-warning: #fde68a;
+  --border-pro: #ddd6fe;
+
+  --radius: 8px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
