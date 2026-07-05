@@ -43,3 +43,13 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
+/* Admin nav hover */
+.admin-nav-item:hover {
+  background: #F9FAFB !important;
+  color: #374151 !important;
+}
+
+/* Admin user row hover */
+.admin-user-row:hover {
+  background: #F9FAFB !important;
+}

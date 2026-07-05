@@ -93,6 +93,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
       </head>
       <body
         className="bg-white text-gray-900 antialiased min-h-screen"
