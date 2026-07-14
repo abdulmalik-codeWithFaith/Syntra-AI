@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     siteName: "Syntra AI",
     title: "Syntra AI — AI Meeting Assistant That Joins, Transcribes & Extracts Tasks",
     description:
-      "Syntra AI automatically joins your meetings, transcribes every word, extracts tasks and decisions, and generates PDF reports. Works with Google Meet, Zoom and Teams.",
+      "Syntra AI automatically joins your meetings, transcribes every word, extracts tasks and decisions, and generates PDF reports. Works with Google Meet, Zoom and Teams. Founded by Abdulrosheed Abdulmalik(codeWithFaith001)",
     images: [
       {
         url: "/og-image.png",
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
     creator: "@syntraai",
     title: "Syntra AI — AI Meeting Assistant That Joins, Transcribes & Extracts Tasks",
     description:
-      "Syntra joins your meetings automatically, transcribes every word, extracts tasks and decisions, and generates PDF reports. Never take meeting notes again.",
+      "Syntra joins your meetings automatically, transcribes every word, extracts tasks and decisions, and generates PDF reports. Never take meeting notes again.Founded by Abdulrosheed Abdulmalik(codeWithFaith001)",
     images: ["/og-image.png"],
   },
   icons: {
@@ -96,7 +96,6 @@ export const metadata: Metadata = {
   verification: {
     google: "3xl7d3_U6BumiAIu-uXxh6LAro_sz-Z3rzWBqGrtcNY",
   },
-  // <meta name="google-site-verification" content="3xl7d3_U6BumiAIu-uXxh6LAro_sz-Z3rzWBqGrtcNY" />
   applicationName: "Syntra AI",
   referrer: "origin-when-cross-origin",
   formatDetection: {
