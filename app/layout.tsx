@@ -94,8 +94,9 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "add-your-google-search-console-verification-code-here",
+    google: "3xl7d3_U6BumiAIu-uXxh6LAro_sz-Z3rzWBqGrtcNY",
   },
+  // <meta name="google-site-verification" content="3xl7d3_U6BumiAIu-uXxh6LAro_sz-Z3rzWBqGrtcNY" />
   applicationName: "Syntra AI",
   referrer: "origin-when-cross-origin",
   formatDetection: {
