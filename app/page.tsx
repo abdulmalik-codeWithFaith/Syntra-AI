@@ -224,7 +224,7 @@ const PRICING_PLANS: PricingPlan[] = [
   },
   {
     name: "Pro",
-    price: "$19",
+    price: "$10",
     period: "per month",
     description: "For professionals who run meetings and need accountability.",
     features: [
@@ -244,7 +244,7 @@ const PRICING_PLANS: PricingPlan[] = [
   },
   {
     name: "Team",
-    price: "$49",
+    price: "$25",
     period: "per month",
     description: "For teams that need shared accountability across all meetings.",
     features: [
