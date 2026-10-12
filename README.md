@@ -112,10 +112,10 @@ http://localhost:3000
 * [x] Meeting management
 * [x] Google Calendar integration
 * [x] Google Meet integration
-* [ ] Recall.ai meeting bot
-* [ ] AI task extraction
-* [ ] Meeting summaries
-* [ ] PDF reports
+* [x] Recall.ai meeting bot
+* [x] AI task extraction
+* [x] Meeting summaries
+* [x] PDF reports
 * [ ] Email reminders
 * [ ] Team analytics
 * [ ] Voice interaction
