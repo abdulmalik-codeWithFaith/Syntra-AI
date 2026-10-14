@@ -69,8 +69,21 @@ export async function GET(req: NextRequest) {
     );
 
     if (!calRes.ok) {
-      throw new Error("Failed to fetch calendar events");
-    }
+  const errorDetails = await calRes.text();
+
+  console.error("Google Calendar API error:", {
+    status: calRes.status,
+    details: errorDetails,
+  });
+
+  return NextResponse.json(
+    {
+      error: "Failed to fetch Google Calendar events",
+      details: errorDetails,
+    },
+    { status: calRes.status }
+  );
+}
 
     const calData = await calRes.json();
 
