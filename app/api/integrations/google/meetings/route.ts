@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     let accessToken: string = tokenData.accessToken;
 
     // 2. Refresh token if expired (with 5 min buffer)
-    if (tokenData.expiresAt < Date.now() - 5 * 60 * 1000) {
+    if (tokenData.expiresAt < Date.now() + 5 * 60 * 1000){
       if (!tokenData.refreshToken) {
         return NextResponse.json({ error: "Token expired and no refresh token available" }, { status: 401 });
       }
